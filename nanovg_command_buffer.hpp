@@ -110,8 +110,8 @@ protected:
 public:
 	void swap (NanoVgCommandBuffer & other);
 	void clear ();
-	void dispatchSingle (NVGcontext * const ctx, NanoVgCommandBuffer::command const & c);
-	void dispatchAll (NVGcontext * const ctx);
+	void dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer::command const & c);
+	void dispatchAll (NVGcontext * ctx);
 
 	// nvg composite
 	inline void nvgGlobalCompositeOperation(int op) {
@@ -151,7 +151,7 @@ public:
 		}
 	inline void nvgFillPaint(NVGpaint paint) {
 		int idx = addPaint(paint);
-		mCommands.push_back(command(NCB_Constants::NCB_nvgStrokePaint, idx));
+		mCommands.push_back(command(NCB_Constants::NCB_nvgFillPaint, idx));
 		}
 	inline void nvgMiterLimit(float limit) {
 		mCommands.push_back(command(NCB_Constants::NCB_nvgMiterLimit, limit));
@@ -291,10 +291,6 @@ public:
 #endif
 
 #ifdef NANOVG_COMMAND_BUFFER_IMPL
-#ifndef NANOVG_COMMAND_BUFFER_GLOBAL_CONTEXT
-	#define NCB_CTX ctx, 
-	#define NCB_CTXNC ctx
-#endif
 
 int NanoVgCommandBuffer::addPaint (NVGpaint const & paint) {
 	if (mPaints.size()) {
@@ -331,135 +327,137 @@ void NanoVgCommandBuffer::clear () {
 	mStrings.clear();
 	}
 		
-void NanoVgCommandBuffer::dispatchSingle (NVGcontext * const ctx, NanoVgCommandBuffer::command const & c) {
+void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer::command const & c) {
 	switch (c.functionIdx) {
 		// nvg composite
 		case NCB_Constants::NCB_nvgGlobalCompositeOperation:
-			return nvgGlobalCompositeOperation(NCB_CTX c.data.argsInts[0]);
+			return ::nvgGlobalCompositeOperation(ctx, c.data.argsInts[0]);
 		case NCB_Constants::NCB_nvgGlobalCompositeBlendFunc:
-			return nvgGlobalCompositeBlendFunc(NCB_CTX c.data.argsInts[0], c.data.argsInts[1]);
+			return ::nvgGlobalCompositeBlendFunc(ctx, c.data.argsInts[0], c.data.argsInts[1]);
 		case NCB_Constants::NCB_nvgGlobalCompositeBlendFuncSeparate:
-			return nvgGlobalCompositeBlendFuncSeparate(NCB_CTX c.data.argsInts[0], c.data.argsInts[1], c.data.argsInts[2], c.data.argsInts[3]);
+			return ::nvgGlobalCompositeBlendFuncSeparate(ctx, c.data.argsInts[0], c.data.argsInts[1], c.data.argsInts[2], c.data.argsInts[3]);
 		
 		// nvg state
 		case NCB_Constants::NCB_nvgSave:
-			return nvgSave(NCB_CTXNC);
+			return ::nvgSave(ctx);
 		case NCB_Constants::NCB_nvgRestore:
-			return nvgRestore(NCB_CTXNC);
+			return ::nvgRestore(ctx);
 		case NCB_Constants::NCB_nvgReset:
-			return nvgReset(NCB_CTXNC);
+			return ::nvgReset(ctx);
 		
 		// nvg style
 		case NCB_Constants::NCB_nvgShapeAntiAlias:
-			return nvgShapeAntiAlias(NCB_CTX c.data.argsInts[0]);
+			return ::nvgShapeAntiAlias(ctx, c.data.argsInts[0]);
 		case NCB_Constants::NCB_nvgStrokeColor:
-			return nvgStrokeColor(NCB_CTX nvgRGBAf(c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3]) );
+			return ::nvgStrokeColor(ctx, nvgRGBAf(c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3]) );
 		case NCB_Constants::NCB_nvgStrokePaint:
-			return nvgStrokePaint(NCB_CTX mPaints[c.data.argsInts[0]]);
+			return ::nvgStrokePaint(ctx, mPaints[c.data.argsInts[0]]);
 		case NCB_Constants::NCB_nvgFillColor:
-			return nvgFillColor(NCB_CTX nvgRGBAf(c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3]) );
+			return ::nvgFillColor(ctx, nvgRGBAf(c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3]) );
 		case NCB_Constants::NCB_nvgFillPaint:
-			return nvgFillPaint(NCB_CTX mPaints[c.data.argsInts[0]]);
+			return ::nvgFillPaint(ctx, mPaints[c.data.argsInts[0]]);
 		case NCB_Constants::NCB_nvgMiterLimit:
-			return nvgMiterLimit(NCB_CTX c.data.argsFloats[0]);
+			return ::nvgMiterLimit(ctx, c.data.argsFloats[0]);
 		case NCB_Constants::NCB_nvgStrokeWidth:
-			return nvgStrokeWidth(NCB_CTX c.data.argsFloats[0]);
+			return ::nvgStrokeWidth(ctx, c.data.argsFloats[0]);
 		case NCB_Constants::NCB_nvgLineCap:
-			return nvgLineCap(NCB_CTX c.data.argsInts[0]);
+			return ::nvgLineCap(ctx, c.data.argsInts[0]);
 		case NCB_Constants::NCB_nvgLineJoin:
-			return nvgLineJoin(NCB_CTX c.data.argsInts[0]);
+			return ::nvgLineJoin(ctx, c.data.argsInts[0]);
 		case NCB_Constants::NCB_nvgGlobalAlpha:
-			return nvgGlobalAlpha(NCB_CTX c.data.argsFloats[0]);
+			return ::nvgGlobalAlpha(ctx, c.data.argsFloats[0]);
 	
 		// nvg transform
 		case NCB_Constants::NCB_nvgResetTransform:
-			return nvgResetTransform(NCB_CTXNC);
+			return ::nvgResetTransform(ctx);
 		case NCB_Constants::NCB_nvgTransform:
-			return nvgTransform(NCB_CTX c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3], c.data.argsFloats[4], c.data.argsFloats[5]);
+			return ::nvgTransform(ctx, c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3], c.data.argsFloats[4], c.data.argsFloats[5]);
 		case NCB_Constants::NCB_nvgTranslate:
-			return nvgTranslate(NCB_CTX c.data.argsFloats[0], c.data.argsFloats[1]);
+			return ::nvgTranslate(ctx, c.data.argsFloats[0], c.data.argsFloats[1]);
 		case NCB_Constants::NCB_nvgRotate:
-			return nvgRotate(NCB_CTX c.data.argsFloats[0]);
+			return ::nvgRotate(ctx, c.data.argsFloats[0]);
 		case NCB_Constants::NCB_nvgSkewX:
-			return nvgSkewX(NCB_CTX c.data.argsFloats[0]);
+			return ::nvgSkewX(ctx, c.data.argsFloats[0]);
 		case NCB_Constants::NCB_nvgSkewY:
-			return nvgSkewY(NCB_CTX c.data.argsFloats[0]);
+			return ::nvgSkewY(ctx, c.data.argsFloats[0]);
 		case NCB_Constants::NCB_nvgScale:
-			return nvgScale(NCB_CTX c.data.argsFloats[0], c.data.argsFloats[1]);
+			return ::nvgScale(ctx, c.data.argsFloats[0], c.data.argsFloats[1]);
 			
 		// nvg scissor
 		case NCB_Constants::NCB_nvgScissor:
-			return nvgScissor(NCB_CTX c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3]);
+			return ::nvgScissor(ctx, c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3]);
 		case NCB_Constants::NCB_nvgIntersectScissor:
-			return nvgIntersectScissor(NCB_CTX c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3]);
+			return ::nvgIntersectScissor(ctx, c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3]);
 		case NCB_Constants::NCB_nvgResetScissor:
-			return nvgResetScissor(NCB_CTXNC);
+			return ::nvgResetScissor(ctx);
 			
 		// nvg path
 		case NCB_Constants::NCB_nvgBeginPath:
-			return nvgBeginPath(NCB_CTXNC);
+			return ::nvgBeginPath(ctx);
 		case NCB_Constants::NCB_nvgMoveTo:
-			return nvgMoveTo(NCB_CTX c.data.argsFloats[0], c.data.argsFloats[1]);
+			return ::nvgMoveTo(ctx, c.data.argsFloats[0], c.data.argsFloats[1]);
 		case NCB_Constants::NCB_nvgLineTo:
-			return nvgLineTo(NCB_CTX c.data.argsFloats[0], c.data.argsFloats[1]);
+			return ::nvgLineTo(ctx, c.data.argsFloats[0], c.data.argsFloats[1]);
 		case NCB_Constants::NCB_nvgBezierTo:
-			return nvgBezierTo(NCB_CTX c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3], c.data.argsFloats[4], c.data.argsFloats[5]);
+			return ::nvgBezierTo(ctx, c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3], c.data.argsFloats[4], c.data.argsFloats[5]);
 		case NCB_Constants::NCB_nvgQuadTo:
-			return nvgQuadTo(NCB_CTX c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3]);
+			return ::nvgQuadTo(ctx, c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3]);
 		case NCB_Constants::NCB_nvgArcTo:
-			return nvgArcTo(NCB_CTX c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3], c.data.argsFloats[4]);
+			return ::nvgArcTo(ctx, c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3], c.data.argsFloats[4]);
 		case NCB_Constants::NCB_nvgClosePath:
-			return nvgClosePath(NCB_CTXNC);
+			return ::nvgClosePath(ctx);
 			
 		case NCB_Constants::NCB_nvgPathWinding:
-			return nvgPathWinding(NCB_CTX c.data.argsInts[0]);
+			return ::nvgPathWinding(ctx, c.data.argsInts[0]);
 		case NCB_Constants::NCB_nvgArc:
-			return nvgArc(NCB_CTX c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3], c.data.argsFloats[4], c.data.argsInts[5]);
+			return ::nvgArc(ctx, c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3], c.data.argsFloats[4], c.data.argsInts[5]);
 		case NCB_Constants::NCB_nvgRect:
-			return nvgRect(NCB_CTX c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3]);
+			return ::nvgRect(ctx, c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3]);
 		case NCB_Constants::NCB_nvgRoundedRect:
-			return nvgRoundedRect(NCB_CTX c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3], c.data.argsFloats[4]);
+			return ::nvgRoundedRect(ctx, c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3], c.data.argsFloats[4]);
 		//case NCB_Constants::NCB_nvgRoundedRectVarying:
 		//	abort(); // to many args, unused
 		case NCB_Constants::NCB_nvgEllipse:
-			return nvgEllipse(NCB_CTX c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3]);
+			return ::nvgEllipse(ctx, c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3]);
 		case NCB_Constants::NCB_nvgCircle:
-			return nvgCircle(NCB_CTX c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2]);
+			return ::nvgCircle(ctx, c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2]);
 		case NCB_Constants::NCB_nvgFill:
-			return nvgFill(NCB_CTXNC);
+			return ::nvgFill(ctx);
 		case NCB_Constants::NCB_nvgStroke:
-			return nvgStroke(NCB_CTXNC);
+			return ::nvgStroke(ctx);
 
 		// text
 		case NCB_Constants::NCB_nvgFontSize:
-			return nvgFontSize(NCB_CTX c.data.argsFloats[0]);
+			return ::nvgFontSize(ctx, c.data.argsFloats[0]);
 		case NCB_Constants::NCB_nvgFontBlur:
-			return nvgFontBlur(NCB_CTX c.data.argsFloats[0]);
+			return ::nvgFontBlur(ctx, c.data.argsFloats[0]);
 		case NCB_Constants::NCB_nvgTextLetterSpacing:
-			return nvgTextLetterSpacing(NCB_CTX c.data.argsFloats[0]);
+			return ::nvgTextLetterSpacing(ctx, c.data.argsFloats[0]);
 		case NCB_Constants::NCB_nvgTextLineHeight:
-			return nvgTextLineHeight(NCB_CTX c.data.argsFloats[0]);
+			return ::nvgTextLineHeight(ctx, c.data.argsFloats[0]);
 		case NCB_Constants::NCB_nvgTextAlign:
-			return nvgTextLineHeight(NCB_CTX c.data.argsInts[0]);
+			return ::nvgTextLineHeight(ctx, c.data.argsInts[0]);
 		case NCB_Constants::NCB_nvgFontFaceId:
-			return nvgFontFaceId(NCB_CTX c.data.argsInts[0]);
+			return ::nvgFontFaceId(ctx, c.data.argsInts[0]);
 		case NCB_Constants::NCB_nvgText:
 			{
 			const std::string & str = c.data.argsInts[2] >= 0 ? mStrings[c.data.argsInts[2]].c_str() : std::string("");
-			return (void) nvgText(NCB_CTX c.data.argsFloats[0], c.data.argsFloats[1], str.c_str(), NULL);
+			return (void) ::nvgText(ctx, c.data.argsFloats[0], c.data.argsFloats[1], str.c_str(), NULL);
 			}
 		case NCB_Constants::NCB_nvgTextBox:
 			{
 			const std::string & str = c.data.argsInts[3] >= 0 ? mStrings[c.data.argsInts[3]].c_str() : std::string("");
-			return (void) nvgTextBox(NCB_CTX c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], str.c_str(), NULL);
+			return (void) ::nvgTextBox(ctx, c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], str.c_str(), NULL);
 			}
 		default:
 			//abort(); // unknown command
+			return;
 		}
 	}
 		
-void NanoVgCommandBuffer::dispatchAll (NVGcontext * const ctx) {
+void NanoVgCommandBuffer::dispatchAll (NVGcontext * ctx) {
 	for (const command & c : mCommands)
 		dispatchSingle(ctx, c);
 	}
+	
 #endif
