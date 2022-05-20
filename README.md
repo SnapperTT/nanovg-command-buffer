@@ -1,5 +1,5 @@
 # NanoVg Command Buffer
-Allows you to build a list of [NanoVg](https://github.com/memononen/nanovg) rendering commands to be executued later, elsewhere or repeatably such as another thread.
+Allows you to build a list of [NanoVg](https://github.com/memononen/nanovg) rendering commands to be executued later/elsewhere/repeatably. One use case is to render from another thread.
 
 Single header, only dependencies are nanovg, cstdint, std::string, std::vector
 
