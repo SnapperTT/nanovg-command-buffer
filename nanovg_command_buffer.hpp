@@ -5,6 +5,8 @@
 #include <vector>
 #include <string>
 
+struct sttfont_formatted_text;
+
 struct NCB_Constants {
 	static constexpr int32_t NCB_unknown = 0;
 	
@@ -72,6 +74,14 @@ struct NCB_Constants {
 	static constexpr int32_t NCB_nvgFontFaceId = 46;
 	static constexpr int32_t NCB_nvgText = 47;
 	static constexpr int32_t NCB_nvgTextBox = 48;
+	
+	// sdlStbFont Stuff
+	static constexpr int32_t SDL_STB_PRODUCER_CONSUMER_drawText = 1001;
+	static constexpr int32_t SDL_STB_PRODUCER_CONSUMER_drawPrerendered = 1002;
+	static constexpr int32_t SDL_STB_PRODUCER_CONSUMER_drawPrerenderedWColorMod = 1003;
+	
+	// bgfx stuff
+	static constexpr int32_t BGFX_SCISSOR = 2001;
 	};
 
 class NanoVgCommandBuffer {
@@ -98,20 +108,29 @@ public:
 		inline explicit command (const int32_t _id, const int i0, const int i1) : functionIdx(_id) { data.argsInts[0] = i0; data.argsInts[1] = i1; }
 		inline explicit command (const int32_t _id, const int i0, const int i1, const int i2) : functionIdx(_id) { data.argsInts[0] = i0; data.argsInts[1] = i1; data.argsInts[2] = i2; }
 		inline explicit command (const int32_t _id, const int i0, const int i1, const int i2, const int i3) : functionIdx(_id) { data.argsInts[0] = i0; data.argsInts[1] = i1; data.argsInts[2] = i2; data.argsInts[3] = i3; }
+		inline explicit command (const int32_t _id, const int i0, const int i1, const int i2, const int i3, const int i4) : functionIdx(_id) { data.argsInts[0] = i0; data.argsInts[1] = i1; data.argsInts[2] = i2; data.argsInts[3] = i3; data.argsInts[4] = i4; }
+		inline explicit command (const int32_t _id, const int i0, const int i1, const int i2, const int i3, const int i4, const int i5) : functionIdx(_id) { data.argsInts[0] = i0; data.argsInts[1] = i1; data.argsInts[2] = i2; data.argsInts[3] = i3; data.argsInts[4] = i4; data.argsInts[5] = i5; }
+		inline explicit command (const int32_t _id, const int i0, const int i1, const int i2, const int i3, const int i4, const int i5, const int i6) : functionIdx(_id) { data.argsInts[0] = i0; data.argsInts[1] = i1; data.argsInts[2] = i2; data.argsInts[3] = i3; data.argsInts[4] = i4; data.argsInts[5] = i5; data.argsInts[6] = i6; }
 		inline explicit command (const int32_t _id, const float f0, const float f1, const int i2) : functionIdx(_id) { data.argsFloats[0] = f0; data.argsFloats[1] = f1; data.argsInts[2] = i2; }
 		inline explicit command (const int32_t _id, const float f0, const float f1, const float f2, const int i3) : functionIdx(_id) { data.argsFloats[0] = f0; data.argsFloats[1] = f1; data.argsFloats[2] = f2; data.argsInts[3] = i3; }
 	};
 	std::vector <NanoVgCommandBuffer::command> mCommands;
 	std::vector <NVGpaint> mPaints;
 	std::vector <std::string> mStrings;
+	#ifdef SDL_STB_PRODUCER_CONSUMER
+	producer_consumer_font_cache* m_producer_consumer_font_cache;
+	#endif
+		
 protected:
 	int addPaint (NVGpaint const & paint);
 	int addString (char const * string, char const * end);
 public:
+	NanoVgCommandBuffer();
 	void swap (NanoVgCommandBuffer & other);
 	void clear ();
 	void dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer::command const & c);
 	void dispatchAll (NVGcontext * ctx);
+
 
 	// nvg composite
 	inline void nvgGlobalCompositeOperation(int op) {
@@ -286,12 +305,40 @@ public:
 		int idx = addString(string, end);
 		mCommands.push_back(command(NCB_Constants::NCB_nvgTextBox, x, y, breakRowWidth, idx));
 		}
-
+		
+	#ifdef SDL_STB_PRODUCER_CONSUMER
+	// SDL_STB_PRODUCER_CONSUMER_Font functions to be used with producerConsumerFrontend
+	// https://github.com/SnapperTT/sdl_stb_font
+	inline void pushSsfText(const int h) {
+		mCommands.push_back(command(NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText, h));
+		}
+	
+	void pushSsfText(const int x, const int y, const std::string & s, int* xOut=NULL, int * widthOut=NULL, int* heightOut=NULL);
+		
+	void pushSsfText(const int x, const int y, const sttfont_formatted_text & s, int* xOut=NULL, int * widthOut=NULL, int* heightOut=NULL);
+		
+	void pushSsfText(const int x, const int y, const char* c, int* xOut=NULL, int * widthOut=NULL, int* heightOut=NULL);
+		
+	void pushSsfPrerendered(const int textHandle, const int x, const int y);
+	
+	void pushSsfPrerenderedWColorMod(const int textHandle, const int x, const int y, const int r, const int g, const int b, const int a);
+	#endif
+	
+	#ifdef BGFX
+	inline void bgfxSetViewScissor(const int viewId, const int x, const int y, const int w, const int h) {
+		mCommands.push_back(command(NCB_Constants::BGFX_SCISSOR, viewId, x, y, w, h));
+		}
+	#endif
 	};
 #endif
 
 #ifdef NANOVG_COMMAND_BUFFER_IMPL
-
+NanoVgCommandBuffer::NanoVgCommandBuffer() {
+	#ifdef SDL_STB_PRODUCER_CONSUMER
+		m_producer_consumer_font_cache = NULL;
+	#endif
+	}
+	
 int NanoVgCommandBuffer::addPaint (NVGpaint const & paint) {
 	if (mPaints.size()) {
 		// easy out - resusue paint if its the same as previous
@@ -449,11 +496,54 @@ void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer:
 			const std::string & str = c.data.argsInts[3] >= 0 ? mStrings[c.data.argsInts[3]].c_str() : std::string("");
 			return (void) ::nvgTextBox(ctx, c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], str.c_str(), NULL);
 			}
+		
+		#ifdef SDL_STB_PRODUCER_CONSUMER
+		case NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText:
+			return m_producer_consumer_font_cache->dispatchSingleText(c.data.argsInts[0]);
+		case NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawPrerendered:
+			return m_producer_consumer_font_cache->dispatchSinglePrerendered(c.data.argsInts[0], c.data.argsInts[1], c.data.argsInts[2]);
+		case NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawPrerenderedWColorMod:
+			return m_producer_consumer_font_cache->dispatchSinglePrerenderedWColorMod(c.data.argsInts[0], c.data.argsInts[1], c.data.argsInts[2], c.data.argsInts[3], c.data.argsInts[4], c.data.argsInts[5], c.data.argsInts[6]);
+			
+		#endif
+		
+		#ifdef BGFX
+		case NCB_Constants::BGFX_SCISSOR:
+			return bgfx::setViewScissor(c.data.argsInts[0], c.data.argsInts[1], c.data.argsInts[2], c.data.argsInts[3], c.data.argsInts[4]);
+		#endif
+		
 		default:
 			//abort(); // unknown command
 			return;
 		}
 	}
+		
+#ifdef SDL_STB_PRODUCER_CONSUMER
+// SDL_STB_PRODUCER_CONSUMER_Font functions to be used with producerConsumerFrontend
+// https://github.com/SnapperTT/sdl_stb_font
+void NanoVgCommandBuffer::pushSsfText(const int x, const int y, const std::string & s, int* xOut, int * widthOut, int* heightOut) {
+	pcfc_handle h = m_producer_consumer_font_cache->pushText(x, y, s, xOut, widthOut, heightOut);
+	mCommands.push_back(command(NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText, h, x, y));
+	}
+	
+void NanoVgCommandBuffer::pushSsfText(const int x, const int y, const sttfont_formatted_text & s, int* xOut, int * widthOut, int* heightOut) {
+	pcfc_handle h = m_producer_consumer_font_cache->pushText(x, y, s, xOut, widthOut, heightOut);
+	mCommands.push_back(command(NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText, h, x, y));
+	}
+	
+void NanoVgCommandBuffer::pushSsfText(const int x, const int y, const char* c, int* xOut, int * widthOut, int* heightOut) {
+	pcfc_handle h = m_producer_consumer_font_cache->pushText(x, y, c, -1, xOut, widthOut, heightOut);
+	mCommands.push_back(command(NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText, h, x, y));
+	}
+	
+void NanoVgCommandBuffer::pushSsfPrerendered(const int textHandle, const int x, const int y) {
+	mCommands.push_back(command(NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawPrerendered, textHandle, x, y));
+	}
+	
+void NanoVgCommandBuffer::pushSsfPrerenderedWColorMod(const int textHandle, const int x, const int y, const int r, const int g, const int b, const int a) {
+	mCommands.push_back(command(NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawPrerenderedWColorMod, textHandle, x, y, r, g, b, a));
+	}
+#endif
 		
 void NanoVgCommandBuffer::dispatchAll (NVGcontext * ctx) {
 	for (const command & c : mCommands)
