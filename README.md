@@ -53,71 +53,71 @@ class NanoVgCommandBuffer;
 void swap(NanoVgCommandBuffer& other); // swaps internal std::vectors
 void clear(); // 
 void dispatchSingle(NVGcontext* ctx, const NanoVgCommandBuffer::command & c);
-void dispatch(NVGcontext* ctx)
+void dispatch(NVGcontext* ctx);
 
 // nvg functions
 // nvg composite
-void nvgGlobalCompositeOperation(int op)
-void nvgGlobalCompositeBlendFunc(int sfactor, int dfactor)
-void nvgGlobalCompositeBlendFuncSeparate(int srcRGB, int dstRGB, int srcAlpha, int dstAlpha)
+void nvgGlobalCompositeOperation(int op);
+void nvgGlobalCompositeBlendFunc(int sfactor, int dfactor);
+void nvgGlobalCompositeBlendFuncSeparate(int srcRGB, int dstRGB, int srcAlpha, int dstAlpha);
 
 // nvg state
-void nvgSave()
-void nvgRestore()
-void nvgReset()
+void nvgSave();
+void nvgRestore();
+void nvgReset();
 
 // nvg style
-void nvgShapeAntiAlias(int enabled)
-void nvgStrokeColor(NVGcolor color)
-void nvgStrokePaint(NVGpaint paint)
-void nvgFillColor(NVGcolor color)
-void nvgFillPaint(NVGpaint paint)
-void nvgMiterLimit(float limit)
-void nvgStrokeWidth(float size)
-void nvgLineCap(int cap)
-void nvgLineJoin(int join)
-void nvgGlobalAlpha(float alpha)
+void nvgShapeAntiAlias(int enabled);
+void nvgStrokeColor(NVGcolor color);
+void nvgStrokePaint(NVGpaint paint);
+void nvgFillColor(NVGcolor color);
+void nvgFillPaint(NVGpaint paint);
+void nvgMiterLimit(float limit);
+void nvgStrokeWidth(float size);
+void nvgLineCap(int cap);
+void nvgLineJoin(int join);
+void nvgGlobalAlpha(float alpha);
 
 // nvg transform
-void nvgResetTransform()
-void nvgTransform(float a, float b, float c, float d, float e, float f)
-void nvgTranslate(float x, float y)
-void nvgRotate(float angle)
-void nvgSkewX(float angle)
-void nvgSkewY(float angle)
-void nvgScale(float x, float y)
+void nvgResetTransform();
+void nvgTransform(float a, float b, float c, float d, float e, float f);
+void nvgTranslate(float x, float y);
+void nvgRotate(float angle);
+void nvgSkewX(float angle);
+void nvgSkewY(float angle);
+void nvgScale(float x, float y);
 
 // nvg scissor
-void nvgScissor(float x, float y, float  w, float h)
-void nvgIntersectScissor(float x, float y, float w, float h)
-void nvgResetScissor()
+void nvgScissor(float x, float y, float  w, float h);
+void nvgIntersectScissor(float x, float y, float w, float h);
+void nvgResetScissor();
 
 //nvg path
-void nvgBeginPath()
-void nvgMoveTo(float x, float y)
-void nvgLineTo(float x, float y)
-void nvgBezierTo(float c1x, float c1y, float c2x, float c2y, float x, float y)
-void nvgQuadTo(float cx, float cy, float x, float y)
-void nvgArcTo(float cx, float cy, float x, float y, float radius)
-void nvgClosePath()
-void nvgPathWinding(int dir)
-void nvgArc(float cx, float cy, float r, float a0, float a1, int dir)
-void nvgRect(float x, float y, float w, float h)
-void nvgRoundedRect(float x, float y, float w, float h, float r)
-void nvgEllipse(float cx, float cy, float rx, float ry)
-void nvgCircle(float cx, float cy, float r)
-void nvgFill()
-void nvgStroke()
+void nvgBeginPath();
+void nvgMoveTo(float x, float y);
+void nvgLineTo(float x, float y);
+void nvgBezierTo(float c1x, float c1y, float c2x, float c2y, float x, float y);
+void nvgQuadTo(float cx, float cy, float x, float y);
+void nvgArcTo(float cx, float cy, float x, float y, float radius);
+void nvgClosePath();
+void nvgPathWinding(int dir);
+void nvgArc(float cx, float cy, float r, float a0, float a1, int dir);
+void nvgRect(float x, float y, float w, float h);
+void nvgRoundedRect(float x, float y, float w, float h, float r);
+void nvgEllipse(float cx, float cy, float rx, float ry);
+void nvgCircle(float cx, float cy, float r);
+void nvgFill();
+void nvgStroke();
 
 // nvg font
-void nvgFontSize(float size)
-void nvgFontBlur(float blur)
-void nvgTextLetterSpacing(float spacing)
-void nvgTextLineHeight(float lineHeight)
-void nvgTextAlign(int align)
-void nvgFontFaceId(int font)
-void nvgText(float x, float y, const char* string, const char* end)
-void nvgTextBox(float x, float y, float breakRowWidth, const char* string, const char* end)
+void nvgFontSize(float size);
+void nvgFontBlur(float blur);
+void nvgTextLetterSpacing(float spacing);
+void nvgTextLineHeight(float lineHeight);
+void nvgTextAlign(int align);
+void nvgFontFaceId(int font);
+void nvgText(float x, float y, const char* string, const char* end);
+void nvgTextBox(float x, float y, float breakRowWidth, const char* string, const char* end);
 ```
 
 ### Usage Notes
