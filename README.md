@@ -3,9 +3,11 @@ Allows you to build a list of [NanoVg](https://github.com/memononen/nanovg) rend
 
 Single header, only dependencies are nanovg, cstdint, std::string, std::vector
 
+This also supports [sdl_stb_font](https://github.com/SnapperTT/sdl_stb_font) producer consumer frontend integration, use `#define SDL_STB_PRODUCER_CONSUMER` to enable.
+
 ## Example
 Example - lock free submission of nanovg draw commands from a second thread.
-```
+```c++
 // Thread 1 (update thread)
 NanoVgCommandBuffer* buff = new NanoVgCommandBuffer; // you don't need to use heap, its just easier to pass between threads
 buff->nvgBeginPath();
@@ -34,18 +36,18 @@ Buffers can be reused. `NanoVgCommandBuffer` doesn't need to see a nanovg contex
 
 ## Including
 This is a single header library. To use:
-```
+```c++
 #include "nanovg_command_buffer.hpp"
 ```
 and in one file:
-```
+```c++
 #define NANOVG_COMMAND_BUFFER_IMPL
 #include "nanovg_command_buffer.hpp"
 ```
 
 
 ## Full API
-```
+```c++
 class NanoVgCommandBuffer;
 
 void swap(NanoVgCommandBuffer& other); // swaps internal std::vectors
