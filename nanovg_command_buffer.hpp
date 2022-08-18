@@ -76,6 +76,9 @@ struct NCB_Constants {
 	static constexpr int32_t NCB_nvgText = 47;
 	static constexpr int32_t NCB_nvgTextBox = 48;
 	
+	// break
+	static constexpr int32_t NCB_pause = 1000;
+	
 	// sdlStbFont Stuff
 	static constexpr int32_t SDL_STB_PRODUCER_CONSUMER_drawText = 1001;
 	static constexpr int32_t SDL_STB_PRODUCER_CONSUMER_drawPrerendered = 1002;
@@ -120,6 +123,8 @@ public:
 	#ifdef SDL_STB_PRODUCER_CONSUMER
 	producer_consumer_font_cache* m_producer_consumer_font_cache;
 	#endif
+	int pauseCode;
+	int instructionCounter;
 		
 protected:
 	int addPaint (NVGpaint const & paint);
@@ -129,8 +134,12 @@ public:
 	void swap (NanoVgCommandBuffer & other);
 	void clear ();
 	void dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer::command const & c);
-	void dispatchAll (NVGcontext * ctx);
+	void dispatch (NVGcontext * ctx);
 
+	// Pauses rendering and sets this->pauseCode to _pauseCode
+	inline void pause(int _pauseCode) {
+		mCommands.push_back(command(NCB_Constants::NCB_pause, _pauseCode));
+		}
 
 	// nvg composite
 	inline void nvgGlobalCompositeOperation(int op) {
@@ -344,6 +353,9 @@ NanoVgCommandBuffer::NanoVgCommandBuffer() {
 	#ifdef SDL_STB_PRODUCER_CONSUMER
 		m_producer_consumer_font_cache = NULL;
 	#endif
+	
+	pauseCode = 0;
+	instructionCounter = 0;
 	}
 	
 int NanoVgCommandBuffer::addPaint (NVGpaint const & paint) {
@@ -383,6 +395,13 @@ void NanoVgCommandBuffer::clear () {
 		
 void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer::command const & c) {
 	switch (c.functionIdx) {
+		// break
+		// used to pause execution
+		case NCB_Constants::NCB_pause:
+			pauseCode = c.data.argsInts[0];
+			instructionCounter = -1;
+			return;
+		
 		// nvg composite
 		case NCB_Constants::NCB_nvgGlobalCompositeOperation:
 			return ::nvgGlobalCompositeOperation(ctx, c.data.argsInts[0]);
@@ -566,10 +585,22 @@ void NanoVgCommandBuffer::pushSsfPrerenderedWColorMod(const int textHandle, cons
 	mCommands.push_back(command(NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawPrerenderedWColorMod, textHandle, x, y, r, g, b, a));
 	}
 #endif
+
+void NanoVgCommandBuffer::dispatch (NVGcontext * ctx) {
+	int sz = mCommands.size();
+	
+	for (int i = instructionCounter; i < sz; ++i) {
+		dispatchSingle(ctx, mCommands[i]);
 		
-void NanoVgCommandBuffer::dispatchAll (NVGcontext * ctx) {
-	for (const command & c : mCommands)
-		dispatchSingle(ctx, c);
+		// pause rendering until called again
+		if (instructionCounter < 0) {
+			instructionCounter = i+1;
+			return;
+			}
+		}
+	
+	// reset instruction counter on completion so that the user can re-dispatch if they wish
+	instructionCounter = 0;
 	}
 	
 #endif

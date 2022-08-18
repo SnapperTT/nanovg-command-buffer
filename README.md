@@ -50,12 +50,20 @@ and in one file:
 ```c++
 class NanoVgCommandBuffer;
 
-void swap(NanoVgCommandBuffer& other); // swaps internal std::vectors
-void clear(); // 
-void dispatchSingle(NVGcontext* ctx, const NanoVgCommandBuffer::command & c);
-void dispatch(NVGcontext* ctx);
+///////////////////////////////
+// Command Buffer Object Functions
 
-// nvg functions
+void swap(NanoVgCommandBuffer& other); // swaps internal std::vectors
+void clear();
+void dispatchSingle(NVGcontext* ctx, const NanoVgCommandBuffer::command & c); // Executes a single instruction
+void dispatch(NVGcontext* ctx);	// Executes all instructions
+
+//////////////////////////////
+// Command Buffer Commands:
+
+// flow control
+void pause(int pauseCode); // Sets a marker in the command buffer to pause rendering until dispatch() is called again. NanoVgCommandBuffer::pauseCode is set to `pauseCode`
+
 // nvg composite
 void nvgGlobalCompositeOperation(int op);
 void nvgGlobalCompositeBlendFunc(int sfactor, int dfactor);
