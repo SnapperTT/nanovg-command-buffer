@@ -135,6 +135,7 @@ public:
 	void clear ();
 	void dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer::command const & c);
 	void dispatch (NVGcontext * ctx);
+	static void sttr_register();
 
 	// Pauses rendering and sets this->pauseCode to _pauseCode
 	inline void pause(int _pauseCode) {
@@ -602,5 +603,66 @@ void NanoVgCommandBuffer::dispatch (NVGcontext * ctx) {
 	// reset instruction counter on completion so that the user can re-dispatch if they wish
 	instructionCounter = 0;
 	}
+
+
+void NanoVgCommandBuffer::sttr_register() {
+	#ifdef STTR_CLASS_SIG
+	// see snappertt/sttr on github
+	#define STTR_NVG_METH(C, X, MFLAGS) regField<C,decltype(&C::X),MFLAGS>(&C::X, #X).setUserFlags(MFLAGS)
 	
+	sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+	R.beginClass<NanoVgCommandBuffer>("NanoVgCommandBuffer")
+		.STTR_NVG_METH(NanoVgCommandBuffer, pause, 0)
+		
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgGlobalCompositeOperation, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgGlobalCompositeBlendFunc, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgGlobalCompositeBlendFuncSeparate, 0)
+		
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgSave, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgRestore, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgReset, 0)
+		
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgShapeAntiAlias, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgStrokeColor, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgStrokePaint, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgFillColor, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgFillPaint, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgMiterLimit, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgStrokeWidth, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgLineCap, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgLineJoin, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgGlobalAlpha, 0)
+		
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgResetTransform, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgTransform, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgTranslate, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgRotate, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgSkewX, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgSkewY, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgScale, 0)
+		
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgScissor, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgIntersectScissor, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgResetScissor, 0)
+		
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgBeginPath, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgMoveTo, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgLineTo, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgBezierTo, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgQuadTo, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgArcTo, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgClosePath, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgPathWinding, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgArc, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgRect, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgRoundedRect, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgEllipse, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgCircle, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgFill, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgStroke, 0)
+		// text not supported
+	.endClass();
+	#undef STTR_NVG_METH
+	#endif // STTR
+	}
 #endif
