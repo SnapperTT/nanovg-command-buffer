@@ -86,6 +86,47 @@ struct NCB_Constants {
 	static constexpr int32_t SSF_BGFX_SET_SCISSOR = 1004;
 	static constexpr int32_t SSF_BGFX_CLEAR_SCISSOR = 1005;
 	};
+	
+struct nvgw {
+	// For sttr registering with a namespace
+	inline static NVGcolor nvgRGB(unsigned char r, unsigned char g, unsigned char b) {
+		return ::nvgRGB(r, g, b);
+		}
+	inline static NVGcolor nvgRGBf(float r, float g, float b) {
+		return ::nvgRGBf(r, g, b);
+		}
+	inline static NVGcolor nvgRGBA(unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
+		return ::nvgRGBA(r, g, b, a);
+		}
+	inline static NVGcolor nvgRGBAf(float r, float g, float b, float a) {
+		return ::nvgRGBAf(r, g, b, a);
+		}
+	inline static NVGcolor nvgLerpRGBA(NVGcolor c0, NVGcolor c1, float u) {
+		return ::nvgLerpRGBA(c0, c1, u);
+		}
+	inline static NVGcolor nvgTransRGBA(NVGcolor c0, unsigned char a) {
+		return ::nvgTransRGBA(c0, a);
+		}
+	inline static NVGcolor nvgTransRGBAf(NVGcolor c0, float a) {
+		return ::nvgTransRGBAf(c0, a);
+		}
+	inline static NVGcolor nvgHSL(float h, float s, float l) {
+		return ::nvgHSL(h, s, l);
+		}
+	inline static NVGcolor nvgHSLA(float h, float s, float l, unsigned char a) {
+		return ::nvgHSLA(h, s, l, a);
+		}
+
+	inline static NVGpaint nvgLinearGradient(NVGcontext* ctx, float sx, float sy, float ex, float ey, NVGcolor icol, NVGcolor ocol) {
+		return ::nvgLinearGradient(ctx, sx, sy, ex, ey, icol, ocol);
+		}
+	inline static NVGpaint nvgBoxGradient(NVGcontext* ctx, float x, float y, float w, float h, float r, float f, NVGcolor icol, NVGcolor ocol) {
+		return  ::nvgBoxGradient(ctx, x, y, w, h, r, f, icol, ocol);
+		}
+	inline static NVGpaint nvgRadialGradient(NVGcontext* ctx, float cx, float cy, float inr, float outr, NVGcolor icol, NVGcolor ocol) {
+		return ::nvgRadialGradient(ctx, cx, cy, inr, outr, icol, ocol);
+		}
+	};
 
 class NanoVgCommandBuffer {
 public:
@@ -609,8 +650,41 @@ void NanoVgCommandBuffer::sttr_register() {
 	#ifdef STTR_CLASS_SIG
 	// see snappertt/sttr on github
 	#define STTR_NVG_METH(C, X, MFLAGS) regField<C,decltype(&C::X),MFLAGS>(&C::X, #X).setUserFlags(MFLAGS)
+	#define STTR_NVG_PROP(C, X, MFLAGS) regField<C,decltype(&C::X),MFLAGS>(&C::X, #X).setUserFlags(MFLAGS)
 	
 	sttr::RegNamespace & R = *sttr::getGlobalNamespace();
+	R.beginClass<NVGcontext>("NVGcontext")
+	.endClass();
+	R.beginClass<nvgw>("nvgw")
+		.STTR_NVG_METH(nvgw, nvgLinearGradient, 0)
+		.STTR_NVG_METH(nvgw, nvgBoxGradient, 0)
+		.STTR_NVG_METH(nvgw, nvgRadialGradient, 0)
+		
+		.STTR_NVG_METH(nvgw, nvgRGB, 0)
+		.STTR_NVG_METH(nvgw, nvgRGBf, 0)
+		.STTR_NVG_METH(nvgw, nvgRGBA, 0)
+		.STTR_NVG_METH(nvgw, nvgRGBAf, 0)
+		.STTR_NVG_METH(nvgw, nvgLerpRGBA, 0)
+		.STTR_NVG_METH(nvgw, nvgTransRGBA, 0)
+		.STTR_NVG_METH(nvgw, nvgTransRGBAf, 0)
+		.STTR_NVG_METH(nvgw, nvgHSL, 0)
+		.STTR_NVG_METH(nvgw, nvgHSLA, 0)
+	.endClass();
+	R.beginClass<NVGcolor>("NVGcolor")
+		.STTR_NVG_PROP(NVGcolor, rgba, 0)
+		.STTR_NVG_PROP(NVGcolor, r, 0)
+		.STTR_NVG_PROP(NVGcolor, g, 0)
+		.STTR_NVG_PROP(NVGcolor, b, 0)
+		.STTR_NVG_PROP(NVGcolor, a, 0)
+	.endClass();
+	R.beginClass<NVGpaint>("NVGpaint")
+		.STTR_NVG_PROP(NVGpaint, xform, 0)
+		.STTR_NVG_PROP(NVGpaint, extent, 0)
+		.STTR_NVG_PROP(NVGpaint, radius, 0)
+		.STTR_NVG_PROP(NVGpaint, feather, 0)
+		.STTR_NVG_PROP(NVGpaint, innerColor, 0)
+		.STTR_NVG_PROP(NVGpaint, outerColor, 0)
+	.endClass();
 	R.beginClass<NanoVgCommandBuffer>("NanoVgCommandBuffer")
 		.STTR_NVG_METH(NanoVgCommandBuffer, pause, 0)
 		
@@ -663,6 +737,7 @@ void NanoVgCommandBuffer::sttr_register() {
 		// text not supported
 	.endClass();
 	#undef STTR_NVG_METH
+	#undef STTR_NVG_PROP
 	#endif // STTR
 	}
 #endif
