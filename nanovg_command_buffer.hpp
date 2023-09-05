@@ -568,21 +568,25 @@ void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer:
 		#ifdef SDL_STB_PRODUCER_CONSUMER
 		case NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText:
 			::nvgEndFrame(ctx);
-			return m_producer_consumer_font_cache->dispatchSingleText(c.data.argsInts[0]);
+			m_producer_consumer_font_cache->dispatchSingleText(c.data.argsInts[0]);
+			return;
 		case NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawPrerendered:
 			::nvgEndFrame(ctx);
-			return m_producer_consumer_font_cache->dispatchSinglePrerendered(c.data.argsInts[0], c.data.argsInts[1], c.data.argsInts[2]);
+			m_producer_consumer_font_cache->dispatchSinglePrerendered(c.data.argsInts[0], c.data.argsInts[1], c.data.argsInts[2]);
+			return;
 		case NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawPrerenderedWColorMod:
 			::nvgEndFrame(ctx);
-			return m_producer_consumer_font_cache->dispatchSinglePrerenderedWColorMod(c.data.argsInts[0], c.data.argsInts[1], c.data.argsInts[2], c.data.argsInts[3], c.data.argsInts[4], c.data.argsInts[5], c.data.argsInts[6]);
-			
+			m_producer_consumer_font_cache->dispatchSinglePrerenderedWColorMod(c.data.argsInts[0], c.data.argsInts[1], c.data.argsInts[2], c.data.argsInts[3], c.data.argsInts[4], c.data.argsInts[5], c.data.argsInts[6]);
+			return;
 		#endif
 		
 		#ifdef BGFX
 		case NCB_Constants::SSF_BGFX_SET_SCISSOR:
-			return ((bgfx_stb_font_cache*) m_producer_consumer_font_cache->consumer_font_cache)->setScissor(c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3]);
+			((bgfx_stb_font_cache*) m_producer_consumer_font_cache->consumer_font_cache)->setScissor(c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3]);
+			return;
 		case NCB_Constants::SSF_BGFX_CLEAR_SCISSOR:
-			return ((bgfx_stb_font_cache*) m_producer_consumer_font_cache->consumer_font_cache)->resetScissor();
+			((bgfx_stb_font_cache*) m_producer_consumer_font_cache->consumer_font_cache)->resetScissor();
+			return;
 		#endif
 		
 		default:
