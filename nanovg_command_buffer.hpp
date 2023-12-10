@@ -2,8 +2,15 @@
 #define NANOVG_COMMAND_BUFFER_HPP
 
 #include <cstdint>
-#include <vector>
-#include <string>
+
+#ifndef NCBH_STRING
+	#include <string>
+	#define NCBH_STRING std::string
+#endif
+#ifndef NCBG_VECTOR
+	#include <vector>
+	#define NCBG_VECTOR std::vector
+#endif
 
 struct sttfont_formatted_text;
 struct sttfont_format;
@@ -158,9 +165,9 @@ public:
 		inline explicit command (const int32_t _id, const float f0, const float f1, const int i2) : functionIdx(_id) { data.argsFloats[0] = f0; data.argsFloats[1] = f1; data.argsInts[2] = i2; }
 		inline explicit command (const int32_t _id, const float f0, const float f1, const float f2, const int i3) : functionIdx(_id) { data.argsFloats[0] = f0; data.argsFloats[1] = f1; data.argsFloats[2] = f2; data.argsInts[3] = i3; }
 	};
-	std::vector <NanoVgCommandBuffer::command> mCommands;
-	std::vector <NVGpaint> mPaints;
-	std::vector <std::string> mStrings;
+	NCBG_VECTOR <NanoVgCommandBuffer::command> mCommands;
+	NCBG_VECTOR <NVGpaint> mPaints;
+	NCBG_VECTOR <NCBH_STRING> mStrings;
 	#ifdef SDL_STB_PRODUCER_CONSUMER
 	producer_consumer_font_cache* m_producer_consumer_font_cache;
 	#endif
@@ -364,7 +371,7 @@ public:
 		mCommands.push_back(command(NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText, h));
 		}
 	
-	void pushSsfText(const int x, const int y, const std::string & s, int* xOut=NULL, int * widthOut=NULL, int* heightOut=NULL);
+	void pushSsfText(const int x, const int y, const NCBH_STRING & s, int* xOut=NULL, int * widthOut=NULL, int* heightOut=NULL);
 		
 	void pushSsfText(const int x, const int y, const sttfont_formatted_text & s, int* xOut=NULL, int * widthOut=NULL, int* heightOut=NULL);
 		
@@ -372,7 +379,7 @@ public:
 	
 	void pushSsfText(const int x, const int y, const sttfont_format & format, const char* c, int* xOut=NULL, int * widthOut=NULL, int* heightOut=NULL);
 	
-	void pushSsfText(const int x, const int y, const sttfont_format & format, const std::string & s, int* xOut=NULL, int * widthOut=NULL, int* heightOut=NULL);
+	void pushSsfText(const int x, const int y, const sttfont_format & format, const NCBH_STRING & s, int* xOut=NULL, int * widthOut=NULL, int* heightOut=NULL);
 		
 	void pushSsfPrerendered(const int textHandle, const int x, const int y);
 	
@@ -413,11 +420,11 @@ int NanoVgCommandBuffer::addPaint (NVGpaint const & paint) {
 int NanoVgCommandBuffer::addString (char const * string, char const * end) {
 	if (!string) return -1;
 	if (end) {
-		std::string str(string, end - string);
+		NCBH_STRING str(string, end - string);
 		mStrings.push_back(str);
 		}
 	else {
-		std::string str(string);
+		NCBH_STRING str(string);
 		mStrings.push_back(str);
 		}
 	return mStrings.size() - 1;
@@ -556,12 +563,12 @@ void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer:
 			return ::nvgFontFaceId(ctx, c.data.argsInts[0]);
 		case NCB_Constants::NCB_nvgText:
 			{
-			const std::string & str = c.data.argsInts[2] >= 0 ? mStrings[c.data.argsInts[2]].c_str() : std::string("");
+			const NCBH_STRING & str = c.data.argsInts[2] >= 0 ? mStrings[c.data.argsInts[2]].c_str() : NCBH_STRING("");
 			return (void) ::nvgText(ctx, c.data.argsFloats[0], c.data.argsFloats[1], str.c_str(), NULL);
 			}
 		case NCB_Constants::NCB_nvgTextBox:
 			{
-			const std::string & str = c.data.argsInts[3] >= 0 ? mStrings[c.data.argsInts[3]].c_str() : std::string("");
+			const NCBH_STRING & str = c.data.argsInts[3] >= 0 ? mStrings[c.data.argsInts[3]].c_str() : NCBH_STRING("");
 			return (void) ::nvgTextBox(ctx, c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], str.c_str(), NULL);
 			}
 		
@@ -598,7 +605,7 @@ void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer:
 #ifdef SDL_STB_PRODUCER_CONSUMER
 // SDL_STB_PRODUCER_CONSUMER_Font functions to be used with producerConsumerFrontend
 // https://github.com/SnapperTT/sdl_stb_font
-void NanoVgCommandBuffer::pushSsfText(const int x, const int y, const std::string & s, int* xOut, int * widthOut, int* heightOut) {
+void NanoVgCommandBuffer::pushSsfText(const int x, const int y, const NCBH_STRING & s, int* xOut, int * widthOut, int* heightOut) {
 	pcfc_handle h = m_producer_consumer_font_cache->pushText(x, y, s, xOut, widthOut, heightOut);
 	mCommands.push_back(command(NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText, h, x, y));
 	}
@@ -613,7 +620,7 @@ void NanoVgCommandBuffer::pushSsfText(const int x, const int y, const char* c, i
 	mCommands.push_back(command(NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText, h, x, y));
 	}
 	
-void NanoVgCommandBuffer::pushSsfText(const int x, const int y, const sttfont_format & format, const std::string & s, int* xOut, int * widthOut, int* heightOut) {
+void NanoVgCommandBuffer::pushSsfText(const int x, const int y, const sttfont_format & format, const NCBH_STRING & s, int* xOut, int * widthOut, int* heightOut) {
 	pcfc_handle h = m_producer_consumer_font_cache->pushText(x, y, format, s, xOut, widthOut, heightOut);
 	mCommands.push_back(command(NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText, h, x, y));
 	}
