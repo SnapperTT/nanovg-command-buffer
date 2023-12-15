@@ -14,6 +14,7 @@
 
 struct sttfont_formatted_text;
 struct sttfont_format;
+class NanoVgCommandBufferCustomCallbackI;
 
 struct NCB_Constants {
 	static constexpr int32_t NCB_unknown = 0;
@@ -92,6 +93,8 @@ struct NCB_Constants {
 	static constexpr int32_t SDL_STB_PRODUCER_CONSUMER_drawPrerenderedWColorMod = 1003;
 	static constexpr int32_t SSF_BGFX_SET_SCISSOR = 1004;
 	static constexpr int32_t SSF_BGFX_CLEAR_SCISSOR = 1005;
+	
+	// custom engine stuff
 	};
 	
 struct nvgw {
@@ -168,9 +171,11 @@ public:
 	NCBG_VECTOR <NanoVgCommandBuffer::command> mCommands;
 	NCBG_VECTOR <NVGpaint> mPaints;
 	NCBG_VECTOR <NCBH_STRING> mStrings;
+	//NCBG_VECTOR <NVGvertex> mPoints;
 	#ifdef SDL_STB_PRODUCER_CONSUMER
 	producer_consumer_font_cache* m_producer_consumer_font_cache;
 	#endif
+	NanoVgCommandBufferCustomCallbackI* customCommandHandler;
 	int pauseCode;
 	int instructionCounter;
 		
@@ -394,6 +399,22 @@ public:
 		mCommands.push_back(command(NCB_Constants::SSF_BGFX_CLEAR_SCISSOR));
 		}
 	#endif
+	
+	inline void push_custom(command&& c) {
+		mCommands.push_back(std::move(c));
+		}
+		
+	inline void push_custom(const command& c) {
+		mCommands.push_back(c);
+		}
+	};
+
+	
+class NanoVgCommandBufferCustomCallbackI {
+public:
+	virtual inline bool handleCustomCallback(NanoVgCommandBuffer * NVG, NVGcontext * ctx, NanoVgCommandBuffer::command const & c) {
+		return true;
+		}
 	};
 #endif
 
@@ -405,6 +426,7 @@ NanoVgCommandBuffer::NanoVgCommandBuffer() {
 	
 	pauseCode = 0;
 	instructionCounter = 0;
+	customCommandHandler = NULL;
 	}
 	
 int NanoVgCommandBuffer::addPaint (NVGpaint const & paint) {
@@ -597,7 +619,11 @@ void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer:
 		#endif
 		
 		default:
+			{
+			if (customCommandHandler)
+				customCommandHandler->handleCustomCallback(this, ctx, c);
 			//abort(); // unknown command
+			}
 			return;
 		}
 	}
