@@ -7,9 +7,19 @@
 	#include <string>
 	#define NCBH_STRING std::string
 #endif
-#ifndef NCBG_VECTOR
+#ifndef NCBH_VECTOR
 	#include <vector>
-	#define NCBG_VECTOR std::vector
+	#define NCBH_VECTOR std::vector
+#endif
+#ifndef NCBH_PAGEQUEUE
+	#define NCBH_PAGEQUEUE NCBH_VECTOR
+	#ifndef NCBH_PAGEQUEUE_RANDOM_ACCESS
+		#define NCBH_PAGEQUEUE_RANDOM_ACCESS 1
+	#endif
+#else
+	#ifndef NCBH_PAGEQUEUE_RANDOM_ACCESS
+		#define NCBH_PAGEQUEUE_RANDOM_ACCESS 0
+	#endif
 #endif
 
 struct sttfont_formatted_text;
@@ -168,10 +178,10 @@ public:
 		inline explicit command (const int32_t _id, const float f0, const float f1, const int i2) : functionIdx(_id) { data.argsFloats[0] = f0; data.argsFloats[1] = f1; data.argsInts[2] = i2; }
 		inline explicit command (const int32_t _id, const float f0, const float f1, const float f2, const int i3) : functionIdx(_id) { data.argsFloats[0] = f0; data.argsFloats[1] = f1; data.argsFloats[2] = f2; data.argsInts[3] = i3; }
 	};
-	NCBG_VECTOR <NanoVgCommandBuffer::command> mCommands;
-	NCBG_VECTOR <NVGpaint> mPaints;
-	NCBG_VECTOR <NCBH_STRING> mStrings;
-	//NCBG_VECTOR <NVGvertex> mPoints;
+	NCBH_PAGEQUEUE <NanoVgCommandBuffer::command> mCommands;
+	NCBH_VECTOR <NVGpaint> mPaints;
+	NCBH_VECTOR <NCBH_STRING> mStrings;
+	//NCBH_VECTOR <NVGvertex> mPoints;
 	#ifdef SDL_STB_PRODUCER_CONSUMER
 	producer_consumer_font_cache* m_producer_consumer_font_cache;
 	#endif
@@ -668,8 +678,14 @@ void NanoVgCommandBuffer::pushSsfPrerenderedWColorMod(const int textHandle, cons
 void NanoVgCommandBuffer::dispatch (NVGcontext * ctx) {
 	int sz = mCommands.size();
 	
-	for (int i = instructionCounter; i < sz; ++i) {
-		dispatchSingle(ctx, mCommands[i]);
+	#if NCBH_PAGEQUEUE_RANDOM_ACCESS 
+		auto itt = mCommands.begin() + instructionCounter;
+	#else
+		auto itt = mCommands.iter_at(instructionCounter);
+	#endif
+	
+	for (int i = instructionCounter; i < sz; ++i, ++itt) {
+		dispatchSingle(ctx, *itt);
 		
 		// pause rendering until called again
 		if (instructionCounter < 0) {
