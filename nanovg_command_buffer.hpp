@@ -32,6 +32,9 @@
 #ifndef VGRENDERER_BACKEND
 	#define VGRENDERER_BACKEND 0
 #endif
+#ifndef NCB_ABORT
+	#define NCB_ABORT abort();
+#endif
 
 struct sttfont_formatted_text;
 struct sttfont_format;
@@ -127,6 +130,12 @@ struct NCBColor {
 	float r,g,b,a;
 	inline NCBColor() {}
 	inline NCBColor(const float _r, const float _g, const float _b, const float _a) : r(_r), g(_g), b(_b), a(_a) {}
+		
+	#if NANOVG_BACKEND
+	inline NVGcolor toNVGcolor() {
+		return ::nvgRGBAf(r,g,b,a);
+		}
+	#endif // NANOVG_BACKEND
 	};
 	
 struct NCBGradientGenerator {
@@ -139,50 +148,48 @@ struct NCBGradientGenerator {
 	NCBColor ocol;
 	};
 
-static GradientHandle ctxCreateLinearGradient(Context* ctx, float sx, float sy, float ex, float ey, Color icol, Color ocol)
-static GradientHandle ctxCreateBoxGradient(Context* ctx, float x, float y, float w, float h, float r, float f, Color icol, Color ocol)
-static GradientHandle ctxCreateRadialGradient(Context* ctx, float cx, float cy, float inr, float outr, Color icol, Color ocol)
-
 struct nvgw {
 	// For sttr registering with a namespace
-	#if NANOVG_BACKEND
-	inline static NVGcolor nvgRGB(unsigned char r, unsigned char g, unsigned char b) {
-		return ::nvgRGB(r, g, b);
+	inline static NCBColor nvgRGB(unsigned char r, unsigned char g, unsigned char b) {
+		return NCBColor(r/255.0,g/255.0,b/255.0,1.0f);
 		}
-	inline static NVGcolor nvgRGBf(float r, float g, float b) {
-		return ::nvgRGBf(r, g, b);
+	inline static NCBColor nvgRGBf(float r, float g, float b) {
+		return NCBColor(r, g, b, 1.0);
 		}
-	inline static NVGcolor nvgRGBA(unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
-		return ::nvgRGBA(r, g, b, a);
+	inline static NCBColor nvgRGBA(unsigned char r, unsigned char g, unsigned char b, unsigned char a) {
+		return NCBColor(r/255.0, g/255.0, b/255.0, a/255.0);
 		}
-	inline static NVGcolor nvgRGBAf(float r, float g, float b, float a) {
-		return ::nvgRGBAf(r, g, b, a);
+	inline static NCBColor nvgRGBAf(float r, float g, float b, float a) {
+		return NCBColor(r, g, b, a);
 		}
-	inline static NVGcolor nvgLerpRGBA(NVGcolor c0, NVGcolor c1, float u) {
-		return ::nvgLerpRGBA(c0, c1, u);
+	inline static NCBColor nvgLerpRGBA(const NCBColor& c0, const NCBColor& c1, float u) {
+		const float um = 1.0f - u;
+		return NCBColor(c0.r*um + c1.r*u, c0.g*um + c1.g*u, c0.b*um + c1.b*u, c0.a*um + c1.a*u);
 		}
-	inline static NVGcolor nvgTransRGBA(NVGcolor c0, unsigned char a) {
-		return ::nvgTransRGBA(c0, a);
+	inline static NCBColor nvgTransRGBA(const NCBColor& c0, unsigned char a) {
+		return NCBColor(c0.r, c0.g, c0.b, a/255.0);
 		}
-	inline static NVGcolor nvgTransRGBAf(NVGcolor c0, float a) {
-		return ::nvgTransRGBAf(c0, a);
+	inline static NCBColor nvgTransRGBAf(const NCBColor& c0, float a) {
+		return NCBColor(c0.r, c0.g, c0.b, a);
 		}
-	inline static NVGcolor nvgHSL(float h, float s, float l) {
-		return ::nvgHSL(h, s, l);
-		}
-	inline static NVGcolor nvgHSLA(float h, float s, float l, unsigned char a) {
-		return ::nvgHSLA(h, s, l, a);
-		}
-		
-	#endif // NANOVG_BACKEND
-	#if VGRENDERER_BACKEND
 	
-	//fillPath(Context* ctx, GradientHandle gradient, uint32_t flags);
-	//GradientHandle createLinearGradient(Context* ctx, float sx, float sy, float ex, float ey, Color icol, Color ocol);
-	//GradientHandle createBoxGradient(Context* ctx, float x, float y, float w, float h, float r, float f, Color icol, Color ocol);
-	//GradientHandle createRadialGradient(Context* ctx, float cx, float cy, float inr, float outr, Color icol, Color ocol);
-
-	#endif // if VGRENDERER_BACKEND
+	static NCBColor nvgHSLA_worker(float h, float s, float l, unsigned char a);
+	
+	inline static NCBColor nvgHSLA(float h, float s, float l, unsigned char a) {
+		return nvgHSLA_worker(h, s, l, a);
+		}
+	inline static NCBColor nvgHSL(float h, float s, float l) {
+		return nvgHSLA_worker(h, s, l, 255);
+		}
+	};
+	
+struct ncb_error_handler {
+	static void error(const char * msg) {
+		NCB_ABORT;
+		}
+	static void not_found(const char* msg) {
+		NCB_ABORT;
+		}
 	};
 
 class NanoVgCommandBuffer {
@@ -228,9 +235,16 @@ public:
 	// TBD - with std-stll integration supply a disposable bump allocator instead of this stuff
 	// this is not really a hotspot for allocations - its just a few reallocs per frame
 	NCBH_PAGEQUEUE <NanoVgCommandBuffer::command> mCommands;
-	NCBH_VECTOR <NCBGradientGenerator> mPaintHandles;
+	NCBH_VECTOR <NCBGradientGenerator> mGradientGenerators;
 	NCBH_VECTOR <NCBH_STRING> mStrings;
-	//NCBH_VECTOR <NVGvertex> mPoints;
+	
+	#if VGRENDERER_BACKEND
+		NCBH_VECTOR <vg::GradientHandle> mGradients;
+	#endif
+	#if NANOVG_BACKEND
+		NCBH_VECTOR <NVGpaint> mPaints;
+	#endif
+	
 	#ifdef SDL_STB_PRODUCER_CONSUMER
 	producer_consumer_font_cache* m_producer_consumer_font_cache;
 	#endif
@@ -239,7 +253,7 @@ public:
 	int instructionCounter;
 		
 protected:
-	int addPaint (NVGpaint const & paint);
+	int addPaintGenerator (NCBGradientGenerator const & paint);
 	int addString (char const * string, char const * end);
 public:
 	NanoVgCommandBuffer();
@@ -281,19 +295,25 @@ public:
 	inline void nvgShapeAntiAlias(int enabled) {
 		mCommands.push_back(command(NCB_Constants::NCB_nvgShapeAntiAlias, enabled));
 		}
-	inline void nvgStrokeColor(NVGcolor color) {
+	inline void nvgStrokeColor(const NCBColor& color) {
 		mCommands.push_back(command(NCB_Constants::NCB_nvgStrokeColor, color.r, color.g, color.b, color.a));
 		}
-	inline void nvgStrokePaint(NVGpaint paint) {
-		int idx = addPaint(paint);
-		mCommands.push_back(command(NCB_Constants::NCB_nvgStrokePaint, idx));
+	inline void nvgStrokePaint(int paintIdx) {
+		mCommands.push_back(command(NCB_Constants::NCB_nvgStrokePaint, paintIdx));
 		}
-	inline void nvgFillColor(NVGcolor color) {
+	//inline void nvgStrokePaint(const NCBGradientGenerator & constructionInfo) {
+	//	int idx = addPaintGenerator(constructionInfo);
+	//	mCommands.push_back(command(NCB_Constants::NCB_nvgStrokePaint, idx));
+	//	}
+	inline void nvgFillColor(const NCBColor& color) {
 		mCommands.push_back(command(NCB_Constants::NCB_nvgFillColor, color.r, color.g, color.b, color.a));
 		}
-	inline void nvgFillPaint(NVGpaint paint) {
-		int idx = addPaint(paint);
-		mCommands.push_back(command(NCB_Constants::NCB_nvgFillPaint, idx));
+	//inline void nvgFillPaint(const NCBGradientGenerator & constructionInfo) {
+	//	int idx = addPaintGenerator(constructionInfo);
+	//	mCommands.push_back(command(NCB_Constants::NCB_nvgFillPaint, idx));
+	//	}
+	inline void nvgFillPaint(int paintIdx) {
+		mCommands.push_back(command(NCB_Constants::NCB_nvgFillPaint, paintIdx));
 		}
 	inline void nvgMiterLimit(float limit) {
 		mCommands.push_back(command(NCB_Constants::NCB_nvgMiterLimit, limit));
@@ -429,11 +449,11 @@ public:
 		mCommands.push_back(command(NCB_Constants::NCB_nvgTextBox, x, y, breakRowWidth, idx));
 		}
 	
-	int nvgLinearGradient(NVGcontext* ctx, float sx, float sy, float ex, float ey, NVGcolor icol, NVGcolor ocol);
+	int nvgLinearGradient(NVGcontext* ctx, float sx, float sy, float ex, float ey, const NCBColor& icol, const NCBColor& ocol);
 
-	int nvgBoxGradient(NVGcontext* ctx, float x, float y, float w, float h, float r, float f, NVGcolor icol, NVGcolor ocol);
+	int nvgBoxGradient(NVGcontext* ctx, float x, float y, float w, float h, float r, float f, const NCBColor& icol, const NCBColor& ocol);
 		
-	int nvgRadialGradient(NVGcontext* ctx, float cx, float cy, float inr, float outr, NVGcolor icol, NVGcolor ocol);
+	int nvgRadialGradient(NVGcontext* ctx, float cx, float cy, float inr, float outr, const NCBColor& icol, const NCBColor& ocol);
 	
 	#ifdef SDL_STB_PRODUCER_CONSUMER
 	// SDL_STB_PRODUCER_CONSUMER_Font functions to be used with producerConsumerFrontend
@@ -488,6 +508,21 @@ public:
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Start Implementation
 
+NCBColor nvgw::nvgHSLA_worker(float h, float s, float l, unsigned char a) {
+	float c = (1.0f - fabsf(2.0f * l - 1.0f)) * s; // Chroma
+	float x = c * (1.0f - fabsf(fmodf(h * 6.0f, 2.0f) - 1.0f));
+	float m = l - c / 2.0f;
+
+	float r1, g1, b1;
+	if (h < 1.0f / 6.0f)      { r1 = c; g1 = x; b1 = 0; }
+	else if (h < 2.0f / 6.0f) { r1 = x; g1 = c; b1 = 0; }
+	else if (h < 3.0f / 6.0f) { r1 = 0; g1 = c; b1 = x; }
+	else if (h < 4.0f / 6.0f) { r1 = 0; g1 = x; b1 = c; }
+	else if (h < 5.0f / 6.0f) { r1 = x; g1 = 0; b1 = c; }
+	else                      { r1 = c; g1 = 0; b1 = x; }
+	return NCBColor(r1+m, g1+m, b1+m, a/255.0);
+	}
+	
 #ifdef SDL_STB_PRODUCER_CONSUMER
 #if VGRENDERER_BACKEND
 struct VgRendererSSFCustomCallbackWrapper {
@@ -537,24 +572,37 @@ NanoVgCommandBuffer::NanoVgCommandBuffer() {
 	customCommandHandler = NULL;
 	}
 	
-int NanoVgCommandBuffer::addPaint (NVGpaint const & paint) {
-	if (mPaints.size()) {
+int NanoVgCommandBuffer::addPaintGenerator (NCBGradientGenerator const & paint) {
+	if (mGradientGenerators.size()) {
 		// easy out - resusue paint if its the same as previous
-		if (memcmp(&mPaints[mPaints.size()-1], &paint, sizeof(NVGpaint)) == 0)
-			return mPaints.size()-1;
+		int sz = mGradientGenerators.size();
+		int iBegin = sz - 8; // check the last X paints so that we're not creating duplicates
+		if (iBegin < 0) iBegin = 0;
+		for (int i = iBegin; i < sz; ++i)
+			if (memcmp(&mGradientGenerators[i], &paint, sizeof(NCBGradientGenerator)) == 0)
+				return i;
 		}
-	mPaints.push_back(paint);
-	return mPaints.size() - 1;
+	mGradientGenerators.push_back(paint);
+	return mGradientGenerators.size() - 1;
 	}
 	
 int NanoVgCommandBuffer::addString (char const * string, char const * end) {
 	if (!string) return -1;
+	
+	int sz = mStrings.size();
+	int iBegin = sz - 8;
+	if (iBegin < 0) iBegin = 0;
+		
 	if (end) {
 		NCBH_STRING str(string, end - string);
+		for (int i = iBegin; i < sz; ++i)
+			if (mStrings[i] == str) return i;
 		mStrings.push_back(str);
 		}
 	else {
 		NCBH_STRING str(string);
+		for (int i = iBegin; i < sz; ++i)
+			if (mStrings[i] == str) return i;
 		mStrings.push_back(str);
 		}
 	return mStrings.size() - 1;
@@ -562,14 +610,26 @@ int NanoVgCommandBuffer::addString (char const * string, char const * end) {
 		
 void NanoVgCommandBuffer::swap (NanoVgCommandBuffer & other) {
 	mCommands.swap(other.mCommands);
-	mPaints.swap(other.mPaints);
+	mGradientGenerators.swap(other.mGradientGenerators);
 	mStrings.swap(other.mStrings);
+	#if VGRENDERER_BACKEND
+		mGradients.swap(other.mGradients);
+	#endif
+	#if NANOVG_BACKEND
+		mPaints.swap(other.mPaints);
+	#endif
 	}
 	
 void NanoVgCommandBuffer::clear () {
 	mCommands.clear();
-	mPaints.clear();
+	mGradientGenerators.clear();
 	mStrings.clear();
+	#if VGRENDERER_BACKEND
+		mGradients.clear();
+	#endif
+	#if NANOVG_BACKEND
+		mPaints.clear();
+	#endif
 	}
 	
 void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer::command const & c, NanoVgCommandBuffer::dispatchState & mDispatchSide) {
@@ -703,6 +763,40 @@ void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer:
 			return (void) ::nvgTextBox(ctx, c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], str.c_str(), NULL);
 			}
 		
+		// gradiants
+		case NCB_Constants::NCB_nvgLinearGradient:
+			{
+			unsigned int idx = c.data.argsInts[0];
+			if (idx < mGradientGenerators.size())
+				return ncb_error_handler::error("mGradientGenerators array index out of range");
+			NCBGradientGenerator & G = mGradientGenerators[idx];
+			NVGpaint GH = ::nvgLinearGradient(ctx, G.params[0], G.params[1], G.params[2], G.params[3], G.icol.toNVGcolor(), G.ocol.toNVGcolor());
+			mPaints[idx] = GH;
+			}
+			return;
+			
+		case NCB_Constants::NCB_nvgBoxGradient:
+			{
+			unsigned int idx = c.data.argsInts[0];
+			if (idx < mGradientGenerators.size())
+				return ncb_error_handler::error("mGradientGenerators array index out of range");
+			NCBGradientGenerator & G = mGradientGenerators[idx];
+			NVGpaint GH = ::nvgBoxGradient(ctx, G.params[0], G.params[1], G.params[2], G.params[3], G.params[4], G.params[5], G.icol.toNVGcolor(), G.ocol.toNVGcolor());
+			mPaints[idx] = GH;
+			}
+			return;
+			
+		case NCB_Constants::NCB_nvgRadialGradient:
+			{
+			unsigned int idx = c.data.argsInts[0];
+			if (idx < mGradientGenerators.size())
+				return ncb_error_handler::error("mGradientGenerators array index out of range");
+			NCBGradientGenerator & G = mGradientGenerators[idx];
+			NVGpaint GH = ::nvgRadialGradient(ctx, G.params[0], G.params[1], G.params[2], G.params[3], G.icol.toNVGcolor(), G.ocol.toNVGcolor());
+			mPaints[idx] = GH;
+			}
+			return;
+		
 			#ifdef SDL_STB_PRODUCER_CONSUMER
 				case NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText:
 					if (mDispatchSide.lastCommandId != NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText) {
@@ -728,11 +822,11 @@ void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer:
 		#endif // NANOVG_BACKEND
 		#if VGRENDERER_BACKEND
 		case NCB_Constants::NCB_nvgGlobalCompositeOperation:
-			return ncb_missing("NCB_nvgGlobalCompositeOperation not defined for vg-renderer");
+			return ncb_error_handler::not_found("NCB_nvgGlobalCompositeOperation not defined for vg-renderer");
 		case NCB_Constants::NCB_nvgGlobalCompositeBlendFunc:
-			return ncb_missing("NCB_nvgGlobalCompositeBlendFunc not defined for vg-renderer");
+			return ncb_error_handler::not_found("NCB_nvgGlobalCompositeBlendFunc not defined for vg-renderer");
 		case NCB_Constants::NCB_nvgGlobalCompositeBlendFuncSeparate:
-			return ncb_missing("NCB_nvgGlobalCompositeBlendFuncSeparate not defined for vg-renderer");
+			return ncb_error_handler::not_found("NCB_nvgGlobalCompositeBlendFuncSeparate not defined for vg-renderer");
 		
 		// nvg state
 		case NCB_Constants::NCB_nvgSave:
@@ -740,11 +834,11 @@ void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer:
 		case NCB_Constants::NCB_nvgRestore:
 			return vg::popState(ctx);
 		case NCB_Constants::NCB_nvgReset:
-			return ncb_missing("NCB_nvgReset not defined for vg-renderer");
+			return ncb_error_handler::not_found("NCB_nvgReset not defined for vg-renderer");
 		
 		// nvg style
 		case NCB_Constants::NCB_nvgShapeAntiAlias:
-			return ncb_missing("NCB_nvgShapeAntiAlias not defined for vg-renderer");
+			return ncb_error_handler::not_found("NCB_nvgShapeAntiAlias not defined for vg-renderer");
 		case NCB_Constants::NCB_nvgStrokeColor:
 			return vg::strokePath(ctx, vg::Color(c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3]), CommandListFlags::AllowCommandCulling );
 		case NCB_Constants::NCB_nvgStrokePaint:
@@ -754,13 +848,13 @@ void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer:
 		case NCB_Constants::NCB_nvgFillPaint:
 			return vg::fillPath(ctx, mGradients[c.data.argsInts[0]], CommandListFlags::AllowCommandCulling));
 		case NCB_Constants::NCB_nvgMiterLimit:
-			return ncb_missing("NCB_nvgReset not defined for vg-renderer");
+			return ncb_error_handler::not_found("NCB_nvgReset not defined for vg-renderer");
 		case NCB_Constants::NCB_nvgStrokeWidth:
-			return ncb_missing("NCB_nvgReset not defined for vg-renderer");
+			return ncb_error_handler::not_found("NCB_nvgReset not defined for vg-renderer");
 		case NCB_Constants::NCB_nvgLineCap:
-			return ncb_missing("NCB_nvgReset not defined for vg-renderer");
+			return ncb_error_handler::not_found("NCB_nvgReset not defined for vg-renderer");
 		case NCB_Constants::NCB_nvgLineJoin:
-			return ncb_missing("NCB_nvgReset not defined for vg-renderer");
+			return ncb_error_handler::not_found("NCB_nvgReset not defined for vg-renderer");
 		case NCB_Constants::NCB_nvgGlobalAlpha:
 			return vg::setGlobalAlpha(ctx, c.data.argsFloats[0]);
 	
@@ -774,9 +868,9 @@ void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer:
 		case NCB_Constants::NCB_nvgRotate:
 			return vg::transformRotate(ctx, c.data.argsFloats[0]);
 		case NCB_Constants::NCB_nvgSkewX:
-			return ncb_missing("NCB_nvgSkewX not defined for vg-renderer");
+			return ncb_error_handler::not_found("NCB_nvgSkewX not defined for vg-renderer");
 		case NCB_Constants::NCB_nvgSkewY:
-			return ncb_missing("NCB_nvgSkewY not defined for vg-renderer");
+			return ncb_error_handler::not_found("NCB_nvgSkewY not defined for vg-renderer");
 		case NCB_Constants::NCB_nvgScale:
 			return vg::transformScale(ctx, c.data.argsFloats[0], c.data.argsFloats[1]);
 			
@@ -805,7 +899,7 @@ void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer:
 			return vg::closePath(ctx);
 			
 		case NCB_Constants::NCB_nvgPathWinding:
-			return ncb_missing("NCB_nvgPathWinding not defined for vg-renderer. Just submit everything with CW winding");
+			return ncb_error_handler::not_found("NCB_nvgPathWinding not defined for vg-renderer. Just submit everything with CW winding");
 		case NCB_Constants::NCB_nvgArc:
 			return vg::arc(ctx, c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3], c.data.argsFloats[4], c.data.argsInts[5], vg::Winding::Enum::CW);
 		case NCB_Constants::NCB_nvgRect:
@@ -832,8 +926,48 @@ void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer:
 		case NCB_Constants::NCB_nvgFontFaceId:
 		case NCB_Constants::NCB_nvgText:
 		case NCB_Constants::NCB_nvgTextBox:
-			return ncb_missing("fontstash text functions are not defined for vg-renderer backend. You are welcome to add them yourself if you desire");
+			return ncb_error_handler::not_found("fontstash text functions are not defined for vg-renderer backend. You are welcome to add them yourself if you desire");
+		
+		// gradiants
+		case NCB_Constants::NCB_nvgLinearGradient:
+			{
+			unsigned int idx = c.data.argsInts[0];
+			if (idx < mGradientGenerators.size())
+				return ncb_error_handler::error("mGradientGenerators array index out of range");
+			if (mGradients[idx].idx != VG_INVALID_HANDLE)
+				return; // already defined
+			NCBGradientGenerator & G = mGradientGenerators[idx];
+			GradientHandle GH = vg::createLinearGradient(ctx, G.params[0], G.params[1], G.params[2], G.params[3], G.icol, G.ocol);
+			mGradients[idx] = GH;
+			}
+			return;
 			
+		case NCB_Constants::NCB_nvgBoxGradient:
+			{
+			unsigned int idx = c.data.argsInts[0];
+			if (idx < mGradientGenerators.size())
+				return ncb_error_handler::error("mGradientGenerators array index out of range");
+			if (mGradients[idx].idx != VG_INVALID_HANDLE)
+				return; // already defined
+			NCBGradientGenerator & G = mGradientGenerators[idx];
+			GradientHandle GH = vg::createBoxGradient(ctx, G.params[0], G.params[1], G.params[2], G.params[3], G.params[4], G.params[5], G.icol, G.ocol);
+			mGradients[idx] = GH;
+			}
+			return;
+			
+		case NCB_Constants::NCB_nvgRadialGradient:
+			{
+			unsigned int idx = c.data.argsInts[0];
+			if (idx < mGradientGenerators.size())
+				return ncb_error_handler::error("mGradientGenerators array index out of range");
+			if (mGradients[idx].idx != VG_INVALID_HANDLE)
+				return; // already defined
+			NCBGradientGenerator & G = mGradientGenerators[idx];
+			GradientHandle GH = vg::createRadialGradient(ctx, G.params[0], G.params[1], G.params[2], G.params[3], G.icol, G.ocol);
+			mGradients[idx] = GH;
+			}
+			return;
+		
 			#ifdef SDL_STB_PRODUCER_CONSUMER
 			case NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText:
 				{
@@ -876,6 +1010,7 @@ void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer:
 			#endif
 		#endif // VGRENDERER_BACKEND
 		
+		
 		#ifdef BGFX
 		case NCB_Constants::SSF_BGFX_SET_SCISSOR:
 			((bgfx_stb_font_cache*) m_producer_consumer_font_cache->consumer_font_cache)->setScissor(c.data.argsFloats[0], c.data.argsFloats[1], c.data.argsFloats[2], c.data.argsFloats[3]);
@@ -896,10 +1031,10 @@ void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, NanoVgCommandBuffer:
 	}
 
 
-int NanoVgCommandBuffer::nvgLinearGradient(NVGcontext* ctx, float sx, float sy, float ex, float ey, NVGcolor icol, NVGcolor ocol) {
-	int idx = mPaintHandles.size();
+int NanoVgCommandBuffer::nvgLinearGradient(NVGcontext* ctx, float sx, float sy, float ex, float ey, const NCBColor& icol, const NCBColor& ocol) {
+	int idx = mGradientGenerators.size();
 	NCBGradientGenerator ncbg;
-	ncbg.id = NCB_Constants::NCB_nvgLinearGradient;
+	ncbg.type = NCB_Constants::NCB_nvgLinearGradient;
 	ncbg.params[0] = sx;
 	ncbg.params[1] = sy;
 	ncbg.params[2] = ex;
@@ -908,14 +1043,14 @@ int NanoVgCommandBuffer::nvgLinearGradient(NVGcontext* ctx, float sx, float sy, 
 	ncbg.params[5] = 0;
 	ncbg.icol = icol;
 	ncbg.ocol = ocol;
-	mPaintHandles.push_back(ncbg);
+	mGradientGenerators.push_back(ncbg);
 	return idx;
 	}
 
-int NanoVgCommandBuffer::nvgBoxGradient(NVGcontext* ctx, float x, float y, float w, float h, float r, float f, NVGcolor icol, NVGcolor ocol) {
-	int idx = mPaintHandles.size();
+int NanoVgCommandBuffer::nvgBoxGradient(NVGcontext* ctx, float x, float y, float w, float h, float r, float f, const NCBColor& icol, const NCBColor& ocol) {
+	int idx = mGradientGenerators.size();
 	NCBGradientGenerator ncbg;
-	ncbg.id = NCB_Constants::NCB_nvgBoxGradient;
+	ncbg.type = NCB_Constants::NCB_nvgBoxGradient;
 	ncbg.params[0] = x;
 	ncbg.params[1] = y;
 	ncbg.params[2] = w;
@@ -924,14 +1059,14 @@ int NanoVgCommandBuffer::nvgBoxGradient(NVGcontext* ctx, float x, float y, float
 	ncbg.params[5] = f;
 	ncbg.icol = icol;
 	ncbg.ocol = ocol;
-	mPaintHandles.push_back(ncbg);
+	mGradientGenerators.push_back(ncbg);
 	return idx;
 	}
 	
-int NanoVgCommandBuffer::nvgRadialGradient(NVGcontext* ctx, float cx, float cy, float inr, float outr, NVGcolor icol, NVGcolor ocol) {
-	int idx = mPaintHandles.size();
+int NanoVgCommandBuffer::nvgRadialGradient(NVGcontext* ctx, float cx, float cy, float inr, float outr, const NCBColor& icol, const NCBColor& ocol) {
+	int idx = mGradientGenerators.size();
 	NCBGradientGenerator ncbg;
-	ncbg.id = NCB_Constants::NCB_nvgLinearGradient;
+	ncbg.type = NCB_Constants::NCB_nvgRadialGradient;
 	ncbg.params[0] = cx;
 	ncbg.params[1] = cy;
 	ncbg.params[2] = inr;
@@ -940,7 +1075,7 @@ int NanoVgCommandBuffer::nvgRadialGradient(NVGcontext* ctx, float cx, float cy, 
 	ncbg.params[5] = 0;
 	ncbg.icol = icol;
 	ncbg.ocol = ocol;
-	mPaintHandles.push_back(ncbg);
+	mGradientGenerators.push_back(ncbg);
 	return idx;
 	}
 		
@@ -993,6 +1128,15 @@ void NanoVgCommandBuffer::dispatch (NVGcontext * ctx) {
 	NanoVgCommandBuffer::dispatchState mDispatchState;
 	mDispatchState.initToZero();
 	
+	#if NANOVG_BACKEND
+	if (mPaints.size() < mGradientGenerators.size())
+		mPaints.resize(mGradientGenerators.size());
+	#endif
+	#if VGRENDERER_BACKEND
+	if (mGradients.size() < mGradientGenerators.size())
+		mGradients.resize(mGradientGenerators.size());
+	#endif
+	
 	for (int i = instructionCounter; i < sz; ++i) {
 		//GET ptr to current command, fetch next command
 		auto ittThis = itt;
@@ -1036,26 +1180,22 @@ void NanoVgCommandBuffer::sttr_register() {
 		.STTR_NVG_METH(nvgw, nvgTransRGBAf, 0)
 		.STTR_NVG_METH(nvgw, nvgHSL, 0)
 		.STTR_NVG_METH(nvgw, nvgHSLA, 0)
-		
-		.STTR_NVG_METH(nvgw, nvgLinearGradient, 0)
-		.STTR_NVG_METH(nvgw, nvgBoxGradient, 0)
-		.STTR_NVG_METH(nvgw, nvgRadialGradient, 0)
 	.endClass();
-	R.beginClass<NVGcolor>("NVGcolor")
-		.STTR_NVG_PROP(NVGcolor, rgba, 0)
-		.STTR_NVG_PROP(NVGcolor, r, 0)
-		.STTR_NVG_PROP(NVGcolor, g, 0)
-		.STTR_NVG_PROP(NVGcolor, b, 0)
-		.STTR_NVG_PROP(NVGcolor, a, 0)
-	.endClass();
-	R.beginClass<NVGpaint>("NVGpaint")
-		.STTR_NVG_PROP(NVGpaint, xform, 0)
-		.STTR_NVG_PROP(NVGpaint, extent, 0)
-		.STTR_NVG_PROP(NVGpaint, radius, 0)
-		.STTR_NVG_PROP(NVGpaint, feather, 0)
-		.STTR_NVG_PROP(NVGpaint, innerColor, 0)
-		.STTR_NVG_PROP(NVGpaint, outerColor, 0)
-	.endClass();
+	//R.beginClass<NVGcolor>("NVGcolor")
+	//	.STTR_NVG_PROP(NVGcolor, rgba, 0)
+	//	.STTR_NVG_PROP(NVGcolor, r, 0)
+	//	.STTR_NVG_PROP(NVGcolor, g, 0)
+	//	.STTR_NVG_PROP(NVGcolor, b, 0)
+	//	.STTR_NVG_PROP(NVGcolor, a, 0)
+	//.endClass();
+	//R.beginClass<NVGpaint>("NVGpaint")
+	//	.STTR_NVG_PROP(NVGpaint, xform, 0)
+	//	.STTR_NVG_PROP(NVGpaint, extent, 0)
+	//	.STTR_NVG_PROP(NVGpaint, radius, 0)
+	//	.STTR_NVG_PROP(NVGpaint, feather, 0)
+	//	.STTR_NVG_PROP(NVGpaint, innerColor, 0)
+	//	.STTR_NVG_PROP(NVGpaint, outerColor, 0)
+	//.endClass();
 	R.beginClass<NanoVgCommandBuffer>("NanoVgCommandBuffer")
 		.STTR_NVG_METH(NanoVgCommandBuffer, pause, 0)
 		
@@ -1105,6 +1245,10 @@ void NanoVgCommandBuffer::sttr_register() {
 		.STTR_NVG_METH(NanoVgCommandBuffer, nvgCircle, 0)
 		.STTR_NVG_METH(NanoVgCommandBuffer, nvgFill, 0)
 		.STTR_NVG_METH(NanoVgCommandBuffer, nvgStroke, 0)
+		
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgLinearGradient, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgBoxGradient, 0)
+		.STTR_NVG_METH(NanoVgCommandBuffer, nvgRadialGradient, 0)
 		// text not supported
 	.endClass();
 	#undef STTR_NVG_METH
