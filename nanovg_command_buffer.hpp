@@ -119,6 +119,9 @@ struct NCB_Constants {
 	static constexpr int32_t NCB_nvgBoxGradient = 51;
 	static constexpr int32_t NCB_nvgRadialGradient = 52;
 	
+	// custom remdering
+	static constexpr int32_t NCB_submitTriList = 60;
+	
 	// break
 	static constexpr int32_t NCB_pause = 1000;
 	
@@ -243,7 +246,7 @@ struct VgRendererSSFCustomCallbackWrapper {
 	};
 #endif // VGRENDERER_BACKEND
 #endif // SDL_STB_PRODUCER_CONSUMER
-	
+
 
 class NanoVgCommandBuffer {
 public:
@@ -267,6 +270,23 @@ public:
 			}
 		};
 	
+	struct triListBuffer {
+		float* floats;
+		uint32_t* colours;
+		uint16_t* indices;
+		uint16_t nFloats;
+		uint16_t nColours;
+		uint16_t nIndices;
+		uint32_t allocSz;
+		
+		void assign(uint8_t* mem, const uint32_t _allocSz) {
+			floats = (float*) &mem[0];
+			colours = (uint32_t*) &mem[sizeof(float) * nFloats];
+			indices = (uint16_t*) &mem[sizeof(float) * nFloats + sizeof(uint32_t) * nColours];
+			allocSz = _allocSz;
+			}
+		};
+		
 	struct command
 	{
 		int32_t functionIdx;
@@ -302,6 +322,7 @@ public:
 	NCBH_PAGEQUEUE <NanoVgCommandBuffer::command> mCommands;
 	NCBH_VECTOR <NCBGradientGenerator> mGradientGenerators;
 	NCBH_VECTOR <NCBH_STRING> mStrings;
+	NCBH_VECTOR <uint8_t*> mTriLists;
 	
 	#if VGRENDERER_BACKEND
 		NCBH_VECTOR <vg::GradientHandle> mGradients;
@@ -325,6 +346,7 @@ protected:
 	int addString (char const * string, char const * end);
 public:
 	NanoVgCommandBuffer();
+	~NanoVgCommandBuffer();
 	void swap (NanoVgCommandBuffer & other);
 	void clear ();
 	void dispatchSingle (NVGcontext * ctx, vg::Context * vgCtx, NanoVgCommandBuffer::command const & c, NanoVgCommandBuffer::dispatchState & mDispatchState);
@@ -560,6 +582,23 @@ public:
 		}
 	#endif
 	
+	// index of mTriLists array is returned
+	// if floats/colours/indices is not null then they are copied into the allocated buffer.
+	// otherwise you must access and fill the buffer yourself
+	// int idx = allocateTriList(...);
+	// NanoVgCommandBuffer::triListBuffer* b = NVG->getTriList(idx)
+	// actual drawing of trilists is only supported with vg_renderer backend. If you want this to work with
+	// nanovg you'll have to patch it yourseslf
+	int allocateTriList(const float* floats, const uint32_t* colours, const uint16_t* indices, const uint16_t nFloats, const uint16_t nColours, const uint16_t nIndices);
+	
+	inline triListBuffer* getTriList(const int index) {
+		return (triListBuffer*) mTriLists[index];
+		}
+	
+	inline void submitTriList(const int index) {
+		mCommands.push_back(command(NCB_Constants::NCB_submitTriList, index));
+		}
+	
 	inline void push_custom(command&& c) {
 		mCommands.push_back(std::move(c));
 		}
@@ -650,6 +689,10 @@ NanoVgCommandBuffer::NanoVgCommandBuffer() {
 	customCommandHandler = NULL;
 	}
 	
+NanoVgCommandBuffer::~NanoVgCommandBuffer() {
+	clear();
+	}
+	
 int NanoVgCommandBuffer::addPaintGenerator (NCBGradientGenerator const & paint) {
 	if (mGradientGenerators.size()) {
 		// easy out - resusue paint if its the same as previous
@@ -690,6 +733,7 @@ void NanoVgCommandBuffer::swap (NanoVgCommandBuffer & other) {
 	mCommands.swap(other.mCommands);
 	mGradientGenerators.swap(other.mGradientGenerators);
 	mStrings.swap(other.mStrings);
+	mTriLists.swap(other.mTriLists);
 	#if VGRENDERER_BACKEND
 		mGradients.swap(other.mGradients);
 		#ifdef SDL_STB_PRODUCER_CONSUMER
@@ -705,6 +749,9 @@ void NanoVgCommandBuffer::clear () {
 	mCommands.clear();
 	mGradientGenerators.clear();
 	mStrings.clear();
+	for (uint8_t* ptr : mTriLists)
+		delete[] ptr;
+	mTriLists.clear();
 	#if VGRENDERER_BACKEND
 		mGradients.clear();
 		#ifdef SDL_STB_PRODUCER_CONSUMER
@@ -906,6 +953,12 @@ void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, vg::Context * vgCtx,
 					m_producer_consumer_font_cache->dispatchSinglePrerenderedWColorMod(c.data.argsInts[0], c.data.argsInts[1], c.data.argsInts[2], c.data.argsInts[3], c.data.argsInts[4], c.data.argsInts[5], c.data.argsInts[6]);
 					return;
 			#endif	//SDL_STB_PRODUCER_CONSUMER
+			
+		case NCB_Constants::NCB_submitTriList:
+			ncb_error_handler::not_found("NCB_submitTriList not defined for nvg backend. You'll have write a custom patch to your nanovg to get this to work");
+			// tbd  itterate through tri list and submit nvg commands
+			return;
+			
 		#endif // NANOVG_BACKEND
 		#if VGRENDERER_BACKEND
 		case NCB_Constants::NCB_nvgGlobalCompositeOperation:
@@ -1142,6 +1195,14 @@ void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, vg::Context * vgCtx,
 			return;
 		#endif
 		
+		case NCB_Constants::NCB_submitTriList:
+			{
+			static_assert(sizeof(vg::Color) == sizeof(uint32_t));
+			triListBuffer& tlb = *getTriList(c.data.argsInts[0]);
+			vg::indexedTriList(vgCtx, tlb.floats, NULL, tlb.nFloats / 2, tlb.colours, tlb.nColours, tlb.indices, tlb.nIndices, VG_INVALID_HANDLE);
+			}
+			return;
+			
 		default:
 			{
 			if (customCommandHandler)
@@ -1237,7 +1298,27 @@ void NanoVgCommandBuffer::pushSsfPrerenderedWColorMod(const int textHandle, cons
 	mCommands.push_back(command(NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawPrerenderedWColorMod, textHandle, x, y, r, g, b, a));
 	}
 #endif
-
+	
+int NanoVgCommandBuffer::allocateTriList(const float* floats, const uint32_t* colours, const uint16_t* indices, const uint16_t nFloats, const uint16_t nColours, const uint16_t nIndices) {
+	const uint32_t wantsAlloc = (sizeof(triListBuffer) + sizeof(float)*nFloats + sizeof(uint32_t)*nColours + sizeof(uint16_t)*nIndices);
+	uint8_t* buff = new uint8_t[wantsAlloc];
+	triListBuffer* r = (triListBuffer*) buff;
+	r->nFloats = nFloats;
+	r->nColours = nColours;
+	r->nIndices = nIndices;
+	r->floats = NULL;
+	r->colours = NULL;
+	r->indices = NULL;
+	r->assign(buff + sizeof(triListBuffer), wantsAlloc);
+	mTriLists.push_back(buff);
+	
+	if (floats)  memcpy(r->floats, floats, sizeof(float)*r->nFloats);
+	if (colours) memcpy(r->colours, colours, sizeof(uint32_t)*r->nColours);
+	if (indices) memcpy(r->indices, indices, sizeof(uint16_t)*r->nIndices);
+	
+	return mTriLists.size()-1;
+	}
+		
 void NanoVgCommandBuffer::dispatch_worker (NVGcontext * ctx, vg::Context * vgCtx) {
 	int sz = mCommands.size();
 	
