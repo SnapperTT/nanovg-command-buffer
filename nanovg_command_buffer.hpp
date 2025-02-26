@@ -13,12 +13,12 @@
 #endif
 #ifndef NCBH_PAGEQUEUE
 	#define NCBH_PAGEQUEUE NCBH_VECTOR
-	#ifndef NCBH_PAGEQUEUE_RANDOM_ACCESS
-		#define NCBH_PAGEQUEUE_RANDOM_ACCESS 1
+	#ifndef NCBH_PAGEQUEUE_IS_VECTOR
+		#define NCBH_PAGEQUEUE_IS_VECTOR 1
 	#endif
 #else
-	#ifndef NCBH_PAGEQUEUE_RANDOM_ACCESS
-		#define NCBH_PAGEQUEUE_RANDOM_ACCESS 0
+	#ifndef NCBH_PAGEQUEUE_IS_VECTOR
+		#define NCBH_PAGEQUEUE_IS_VECTOR 0
 	#endif
 #endif
 
@@ -34,6 +34,14 @@
 #endif
 #ifndef NCBH_ABORT
 	#define NCBH_ABORT abort();
+#endif
+#ifndef NCBH_TEMPORARY_ALLOCATOR
+	#define NCBH_TEMPORARY_ALLOCATOR int
+	#define NCBH_TEMPORARY_ALLOCATOR_ENABLED 0
+#else
+	#ifndef NCBH_TEMPORARY_ALLOCATOR_ENABLED
+		#define NCBH_TEMPORARY_ALLOCATOR_ENABLED 1
+	#endif
 #endif
 
 struct sttfont_formatted_text;
@@ -319,6 +327,7 @@ public:
 	};
 	// TBD - with std-stll integration supply a disposable bump allocator instead of this stuff
 	// this is not really a hotspot for allocations - its just a few reallocs per frame
+	NCBH_TEMPORARY_ALLOCATOR* allocator; // A temporary allocator (requires snappertt/stt-stl containers to work)
 	NCBH_PAGEQUEUE <NanoVgCommandBuffer::command> mCommands;
 	NCBH_VECTOR <NCBGradientGenerator> mGradientGenerators;
 	NCBH_VECTOR <NCBH_STRING> mStrings;
@@ -349,6 +358,7 @@ public:
 	~NanoVgCommandBuffer();
 	void swap (NanoVgCommandBuffer & other);
 	void clear ();
+	void discard_internal_state ();
 	void dispatchSingle (NVGcontext * ctx, vg::Context * vgCtx, NanoVgCommandBuffer::command const & c, NanoVgCommandBuffer::dispatchState & mDispatchState);
 	inline void dispatchSingle (NVGcontext * ctx, vg::Context * vgCtx, NanoVgCommandBuffer::command const & c) { dispatchState s; s.initToZero(); dispatchSingle(ctx, vgCtx, c, s); }
 	void dispatch (NVGcontext * ctx);
@@ -357,7 +367,7 @@ protected:
 	void dispatch_worker (NVGcontext * ctx, vg::Context * vgCtx);
 public:
 	static void sttr_register();
-
+	
 	// Pauses rendering and sets this->pauseCode to _pauseCode
 	inline void pause(int _pauseCode) {
 		mCommands.push_back(command(NCB_Constants::NCB_pause, _pauseCode));
@@ -606,6 +616,8 @@ public:
 	inline void push_custom(const command& c) {
 		mCommands.push_back(c);
 		}
+		
+	void bindAllocator(NCBH_TEMPORARY_ALLOCATOR* _allocator);
 	};
 
 	
@@ -651,17 +663,20 @@ void VgRendererSSFCustomCallbackWrapper::vgCustomCallback(vg::Context* ctx, void
 		case NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText:
 			{
 			if (cb.lastCommandId != NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText) {
-				pcfc->consumer_font_cache->onStartDrawing(); // start batched text rendering
+				//Logger_ldbg(" cb.lastCommandId != NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText {} {}", cb.lastCommandId, NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText);
+				pcfc->consumer_font_cache->startManuallyBuffering(true); // start batched text rendering
 				}
 			
-			//Logger_ldbg("dispatch text: {}", cb.textId);
-			if (cb.commandId == NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText)
-				pcfc->dispatchSingleText(cb.textId);
+			pcfc->dispatchSingleText(cb.textId);
 			
-			//Logger_ldbg("text: {}", pcfc->getConsumerState()->text[cb.textId].text.getString());
-	
-			if (cb.lastCommandId != NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText) {
-				pcfc->consumer_font_cache->onCompletedDrawing(); // finish batched text rendering
+			//auto& textObj = pcfc->getConsumerState()->text[cb.textId].text;
+			//if (textObj.mItems.size())
+			//	Logger_ldbg("NCB command [{}, {}, {}] dispatch text: \"{}\" ({}, {}, {}, {}))", cb.lastCommandId, cb.commandId, cb.nextCommandId, textObj.getString(), textObj.mItems[0].format.r, textObj.mItems[0].format.g, textObj.mItems[0].format.b, textObj.mItems[0].format.a);
+			
+			
+			if (cb.nextCommandId != NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText) {
+				//Logger_ldbg(" cb.nextCommandId != NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText {} {}", cb.nextCommandId, NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText);
+				pcfc->consumer_font_cache->endManuallyBuffering(true); // finish batched text rendering
 				}
 			}
 			return;
@@ -683,7 +698,7 @@ NanoVgCommandBuffer::NanoVgCommandBuffer() {
 	#ifdef SDL_STB_PRODUCER_CONSUMER
 		m_producer_consumer_font_cache = NULL;
 	#endif
-	
+	allocator = 0;
 	pauseCode = 0;
 	instructionCounter = 0;
 	customCommandHandler = NULL;
@@ -728,20 +743,70 @@ int NanoVgCommandBuffer::addString (char const * string, char const * end) {
 		}
 	return mStrings.size() - 1;
 	}
+
+void NanoVgCommandBuffer::bindAllocator(NCBH_TEMPORARY_ALLOCATOR* _allocator) {
+	#if NCBH_TEMPORARY_ALLOCATOR_ENABLED
+		if (allocator)
+			ncb_error_handler::error("custom allocator already assigned");
 		
-void NanoVgCommandBuffer::swap (NanoVgCommandBuffer & other) {
-	mCommands.swap(other.mCommands);
-	mGradientGenerators.swap(other.mGradientGenerators);
-	mStrings.swap(other.mStrings);
-	mTriLists.swap(other.mTriLists);
-	#if VGRENDERER_BACKEND
-		mGradients.swap(other.mGradients);
-		#ifdef SDL_STB_PRODUCER_CONSUMER
-			mTextCallbacks.swap(other.mTextCallbacks);
+		allocator = _allocator;
+		#if NCBH_PAGEQUEUE_IS_VECTOR
+			mCommands.setAllocator(allocator);
 		#endif
+		mGradientGenerators.setAllocator(allocator);
+		mStrings.setAllocator(allocator);
+		mTriLists.setAllocator(allocator);
+		#if VGRENDERER_BACKEND
+			mGradients.setAllocator(allocator);
+		#endif
+		#if NANOVG_BACKEND
+			mPaints.setAllocator(allocator);
+		#endif
+		#ifdef SDL_STB_PRODUCER_CONSUMER
+			#if VGRENDERER_BACKEND
+				mTextCallbacks.setAllocator(allocator);
+			#endif
+		#endif
+	#else
+		ncb_error_handler::error("temporary allocator is not enabled");
 	#endif
-	#if NANOVG_BACKEND
-		mPaints.swap(other.mPaints);
+	}
+
+void NanoVgCommandBuffer::swap (NanoVgCommandBuffer & other) {
+	if (bool(allocator) xor bool(other.allocator))
+		ncb_error_handler::error("cannot swap buffers if only one or the other is using temporary allocators");
+	
+	#if NCBH_TEMPORARY_ALLOCATOR_ENABLED
+		auto* p = allocator;
+		allocator = other.allocator;
+		other.allocator = p;
+		mCommands.swap_allocator_pointers(other.mCommands);
+		mGradientGenerators.swap_allocator_pointers(other.mGradientGenerators);
+		mStrings.swap_allocator_pointers(other.mStrings);
+		mTriLists.swap_allocator_pointers(other.mTriLists);
+		#if VGRENDERER_BACKEND
+			mGradients.swap_allocator_pointers(other.mGradients);
+			#ifdef SDL_STB_PRODUCER_CONSUMER
+				mTextCallbacks.swap_allocator_pointers(other.mTextCallbacks);
+			#endif
+		#endif
+		#if NANOVG_BACKEND
+			mPaints.swap_allocator_pointers(other.mPaints);
+		#endif
+	#else
+		mCommands.swap(other.mCommands);
+		mGradientGenerators.swap(other.mGradientGenerators);
+		mStrings.swap(other.mStrings);
+		mTriLists.swap(other.mTriLists);
+		#if VGRENDERER_BACKEND
+			mGradients.swap(other.mGradients);
+			#ifdef SDL_STB_PRODUCER_CONSUMER
+				mTextCallbacks.swap(other.mTextCallbacks);
+			#endif
+		#endif
+		#if NANOVG_BACKEND
+			mPaints.swap(other.mPaints);
+		#endif
 	#endif
 	}
 	
@@ -749,8 +814,10 @@ void NanoVgCommandBuffer::clear () {
 	mCommands.clear();
 	mGradientGenerators.clear();
 	mStrings.clear();
-	for (uint8_t* ptr : mTriLists)
-		delete[] ptr;
+	if (!allocator) {
+		for (uint8_t* ptr : mTriLists)
+			delete[] ptr;
+		}
 	mTriLists.clear();
 	#if VGRENDERER_BACKEND
 		mGradients.clear();
@@ -762,6 +829,36 @@ void NanoVgCommandBuffer::clear () {
 		mPaints.clear();
 	#endif
 	}
+	
+void NanoVgCommandBuffer::discard_internal_state () {
+	// use this is a custom temporary allocator owns the data
+	// and you are resetting the allocator
+	#if NCBH_TEMPORARY_ALLOCATOR_ENABLED
+	if (!allocator)
+		ncb_error_handler::error("cannot discard_internal_state if not using a temporary allocator");
+	
+	#if NCBH_PAGEQUEUE_IS_VECTOR
+		mCommands.discard_internal_state();
+	#else
+		mCommands.clear();
+	#endif
+	mGradientGenerators.discard_internal_state();
+	mStrings.discard_internal_state();
+	mTriLists.discard_internal_state();
+	#if VGRENDERER_BACKEND
+		mGradients.discard_internal_state();
+		#ifdef SDL_STB_PRODUCER_CONSUMER
+			mTextCallbacks.discard_internal_state();
+		#endif
+	#endif
+	#if NANOVG_BACKEND
+		mPaints.discard_internal_state();
+	#endif
+	
+	allocator = NULL;
+	#endif
+	}
+	
 	
 void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, vg::Context * vgCtx, NanoVgCommandBuffer::command const & c, NanoVgCommandBuffer::dispatchState & mDispatchState) {
 	switch (c.functionIdx) {
@@ -935,13 +1032,13 @@ void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, vg::Context * vgCtx,
 				case NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText:
 					if (mDispatchState.lastCommandId != NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText) {
 						::nvgEndFrame(ctx);
-						m_producer_consumer_font_cache->consumer_font_cache->onStartDrawing(); // start batched text rendering
+						m_producer_consumer_font_cache->consumer_font_cache->startManuallyBuffering(true); // start batched text rendering
 						}
 					
 					m_producer_consumer_font_cache->dispatchSingleText(c.data.argsInts[0]);
 					
 					if (mDispatchState.nextCommandId != NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawText) {
-						m_producer_consumer_font_cache->consumer_font_cache->onCompletedDrawing(); // finish and draw the batch
+						m_producer_consumer_font_cache->consumer_font_cache->endManuallyBuffering(true); // finish and draw the batch
 						}
 					return;
 				case NCB_Constants::SDL_STB_PRODUCER_CONSUMER_drawPrerendered:
@@ -1300,16 +1397,38 @@ void NanoVgCommandBuffer::pushSsfPrerenderedWColorMod(const int textHandle, cons
 #endif
 	
 int NanoVgCommandBuffer::allocateTriList(const float* floats, const uint32_t* colours, const uint16_t* indices, const uint16_t nFloats, const uint16_t nColours, const uint16_t nIndices) {
+	triListBuffer* r  = 0;
+	uint8_t* buff = 0;
 	const uint32_t wantsAlloc = (sizeof(triListBuffer) + sizeof(float)*nFloats + sizeof(uint32_t)*nColours + sizeof(uint16_t)*nIndices);
-	uint8_t* buff = new uint8_t[wantsAlloc];
-	triListBuffer* r = (triListBuffer*) buff;
+	
+	if (allocator) {
+		// split the allocation into a bunch of small allocations to try to keep things in page size
+		#if NCBH_TEMPORARY_ALLOCATOR_ENABLED
+			buff = allocator->allocate(sizeof(triListBuffer));
+			r = (triListBuffer*) buff;
+			uint8_t* buff_floats = allocator->allocate(sizeof(float)*nFloats);
+			uint8_t* buff_colours = allocator->allocate(sizeof(uint32_t)*nColours);
+			uint8_t* buff_indicies = allocator->allocate(sizeof(uint16_t)*nIndices);
+			r->floats  = (float*)buff_floats;
+			r->colours = (uint32_t*)buff_colours;
+			r->indices = (uint16_t*)buff_indicies;
+			r->allocSz = wantsAlloc;
+		#else
+			ncb_error_handler::error("temporary allocator is not enabled");
+		#endif
+		}
+	else {
+		buff = new uint8_t[wantsAlloc];
+		r = (triListBuffer*) buff;
+		r->floats = NULL;
+		r->colours = NULL;
+		r->indices = NULL;
+		}
 	r->nFloats = nFloats;
 	r->nColours = nColours;
 	r->nIndices = nIndices;
-	r->floats = NULL;
-	r->colours = NULL;
-	r->indices = NULL;
-	r->assign(buff + sizeof(triListBuffer), wantsAlloc);
+	if (!allocator)
+		r->assign(buff + sizeof(triListBuffer), wantsAlloc);
 	mTriLists.push_back(buff);
 	
 	if (floats)  memcpy(r->floats, floats, sizeof(float)*r->nFloats);
@@ -1322,7 +1441,7 @@ int NanoVgCommandBuffer::allocateTriList(const float* floats, const uint32_t* co
 void NanoVgCommandBuffer::dispatch_worker (NVGcontext * ctx, vg::Context * vgCtx) {
 	int sz = mCommands.size();
 	
-	#if NCBH_PAGEQUEUE_RANDOM_ACCESS 
+	#if NCBH_PAGEQUEUE_IS_VECTOR 
 		auto itt = mCommands.begin() + instructionCounter;
 	#else
 		auto itt = mCommands.iter_at(instructionCounter);
