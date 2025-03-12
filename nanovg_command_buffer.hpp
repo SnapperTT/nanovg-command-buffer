@@ -601,7 +601,9 @@ public:
 	// nanovg you'll have to patch it yourseslf
 	int allocateTriList(const float* floats, const uint32_t* colours, const uint16_t* indices, const uint16_t nFloats, const uint16_t nColours, const uint16_t nIndices);
 	
-	inline triListBuffer* getTriList(const int index) {
+	triListBuffer* getTriList(const int index) {
+		if (unsigned(index) >= mTriLists.size())
+			return NULL;
 		return (triListBuffer*) mTriLists[index];
 		}
 	
@@ -1295,8 +1297,11 @@ void NanoVgCommandBuffer::dispatchSingle (NVGcontext * ctx, vg::Context * vgCtx,
 		case NCB_Constants::NCB_submitTriList:
 			{
 			static_assert(sizeof(vg::Color) == sizeof(uint32_t));
-			triListBuffer& tlb = *getTriList(c.data.argsInts[0]);
-			vg::indexedTriList(vgCtx, tlb.floats, NULL, tlb.nFloats / 2, tlb.colours, tlb.nColours, tlb.indices, tlb.nIndices, VG_INVALID_HANDLE);
+			triListBuffer* tlbp = getTriList(c.data.argsInts[0]);
+			if (!tlbp) {
+				return ncb_error_handler::error("NCB_submitTriList array index out of range");
+				}
+			vg::indexedTriList(vgCtx, tlbp->floats, NULL, tlbp->nFloats / 2, tlbp->colours, tlbp->nColours, tlbp->indices, tlbp->nIndices, VG_INVALID_HANDLE);
 			}
 			return;
 			
